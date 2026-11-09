@@ -1,0 +1,125 @@
+:root {
+  color-scheme: dark;
+  --bg: #071018;
+  --panel: #101c27;
+  --ink: #efe7d6;
+  --muted: #9aabB8;
+  --line: #243846;
+  --amber: #e2a23a;
+  --sea: #1f8f7a;
+  --rec: #e23d3d;
+  --font: "Segoe UI", sans-serif;
+  --display: Bahnschrift, "Segoe UI", sans-serif;
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background:
+    radial-gradient(1200px 400px at 10% -10%, #163044, transparent 50%),
+    var(--bg);
+  color: var(--ink);
+  font-family: var(--font);
+}
+h2 { font-family: var(--display); font-size: 1rem; letter-spacing: 0.04em; margin: 0 0 0.6rem; }
+button, input, select {
+  font: inherit;
+  color: var(--ink);
+  background: #0c1620;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 0.4rem 0.6rem;
+}
+button { cursor: pointer; background: #163246; }
+button:hover { border-color: var(--amber); }
+a { color: var(--amber); }
+
+.top {
+  display: flex;
+  gap: 1.5rem;
+  align-items: center;
+  padding: 0.8rem 1.2rem;
+  border-bottom: 1px solid var(--line);
+  background: rgba(8, 16, 24, 0.9);
+  position: sticky;
+  top: 0;
+}
+.brand { display: flex; gap: 0.7rem; align-items: center; min-width: 220px; }
+.brand strong { display: block; font-family: var(--display); letter-spacing: 0.08em; }
+.brand small { color: var(--muted); }
+.mark {
+  width: 42px; height: 42px;
+  display: grid; place-items: center;
+  background: var(--amber); color: #1a1204;
+  font-family: var(--display); font-weight: 700;
+}
+.instruments { display: flex; gap: 1.2rem; flex: 1; flex-wrap: wrap; }
+.instrument { min-width: 90px; }
+.instrument span { display: block; color: var(--muted); font-size: 0.72rem; letter-spacing: 0.08em; text-transform: uppercase; }
+.instrument b { font-family: var(--display); font-size: 1.35rem; font-weight: 600; }
+.arm { min-width: 140px; font-weight: 700; }
+.arm.on { background: var(--sea); color: #04140f; border-color: transparent; }
+.arm.off { background: #3a2a2a; color: #f0d0d0; }
+
+.layout { display: grid; grid-template-columns: 1fr 320px; gap: 1rem; padding: 1rem; }
+.wall { display: grid; grid-template-columns: 1fr 1fr; gap: 0.8rem; }
+.card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.card.rec { border-color: var(--rec); box-shadow: inset 0 0 0 1px var(--rec); }
+.card img { width: 100%; aspect-ratio: 16/9; object-fit: cover; background: #000; display: block; }
+.card header, .meta { display: flex; justify-content: space-between; gap: 0.5rem; padding: 0.45rem 0.7rem; font-size: 0.86rem; }
+.meta { color: var(--muted); padding-top: 0; }
+.dot { color: var(--rec); font-weight: 700; }
+
+.side, .panel {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0.9rem;
+}
+.hint, .why { color: var(--muted); font-size: 0.88rem; }
+.stack { display: grid; gap: 0.45rem; }
+.stack label { display: grid; gap: 0.2rem; font-size: 0.82rem; color: var(--muted); }
+.row { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+.row.three label { flex: 1; }
+.check { display: flex !important; align-items: center; gap: 0.4rem; }
+.panel { margin: 0 1rem 1rem; }
+.panel-head, .split { display: flex; justify-content: space-between; gap: 1rem; }
+.split > div { flex: 1; }
+.events { display: grid; gap: 0.45rem; }
+.event {
+  display: grid;
+  grid-template-columns: 96px 1fr auto;
+  gap: 0.7rem;
+  align-items: center;
+  padding: 0.4rem;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+.event img { width: 96px; height: 54px; object-fit: cover; background: #000; }
+.event small { color: var(--muted); display: block; }
+.plain { list-style: none; padding: 0; }
+.plain li { display: flex; justify-content: space-between; gap: 0.5rem; padding: 0.35rem 0; border-bottom: 1px solid var(--line); }
+dialog {
+  border: 1px solid var(--line);
+  background: #0c1722;
+  color: var(--ink);
+  width: min(860px, 94vw);
+  border-radius: 8px;
+}
+dialog img { width: 100%; background: #000; }
+dialog header { display: flex; justify-content: space-between; align-items: center; }
+.cond {
+  border: 1px dashed var(--line);
+  padding: 0.5rem;
+  display: grid;
+  gap: 0.35rem;
+}
+@media (max-width: 980px) {
+  .layout, .wall, .split { grid-template-columns: 1fr; display: grid; }
+  .top { flex-wrap: wrap; }
+}
