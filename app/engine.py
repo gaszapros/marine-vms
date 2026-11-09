@@ -13,8 +13,9 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-from app.config import FRAME_H, FRAME_W, MEDIA, THUMBS, ensure_dirs
+from app.config import FRAME_H, FRAME_W, MEDIA, RECORDINGS_ENABLED, THUMBS, ensure_dirs
 from app import db
+from app.github_store import archive
 from app.detectors import MotionDetector, moving_color_mask
 from app.osd import paint
 from app.rules import evaluate_rule, mask_ratio
@@ -42,6 +43,7 @@ class CamRuntime:
     max_clip: float = 90.0
     cooldown: float = 8.0
     recording: bool = False
+    clip_file: Path | None = None
     motion_ratio: float = 0.0
     color_ratio: float = 0.0
     watch_color: bool = False
@@ -98,6 +100,9 @@ class Engine:
     def start(self) -> None:
         ensure_dirs()
         self.stop.clear()
+        if RECORDINGS_ENABLED:
+            archive.scan()
+            archive.start()
         self.supervisor = threading.Thread(target=self._supervise, name="vms-supervisor", daemon=True)
         self.supervisor.start()
 
@@ -325,12 +330,15 @@ class Engine:
         return lines
 
     def _open_clip(self, runtime: CamRuntime, cam: dict, matched: list[tuple[dict, str, float]], speed_kn: float) -> None:
+        if not RECORDINGS_ENABLED:
+            return
         rule, reason, peak = matched[0]
         names = ", ".join(item[0]["name"] for item in matched)
         reasons = " | ".join(item[1] for item in matched)
         stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         path = MEDIA / f"cam{cam['id']}_{stamp}.avi"
         thumb = THUMBS / f"cam{cam['id']}_{stamp}.jpg"
+        runtime.clip_file = path
         writer = cv2.VideoWriter(
             str(path),
             cv2.VideoWriter_fourcc(*"MJPG"),
@@ -338,6 +346,7 @@ class Engine:
             (FRAME_W, FRAME_H),
         )
         if not writer.isOpened():
+            runtime.clip_file = None
             logger.error("не открылся файл записи %s", path)
             return
         runtime.writer = writer
@@ -383,19 +392,16 @@ class Engine:
         runtime.writer = None
         runtime.recording = False
         runtime.cooldown_until = time.monotonic() + runtime.cooldown
-        if runtime.event_id is not None:
-            db.finish_event(runtime.event_id, db.now_iso(), runtime.peak, reason)
-            logger.info("клип закрыт, событие %s", runtime.event_id)
+        event_id = runtime.event_id
+        path = runtime.clip_file
+        if event_id is not None:
+            db.finish_event(event_id, db.now_iso(), runtime.peak, reason)
+            logger.info("клип закрыт, событие %s", event_id)
         runtime.event_id = None
+        runtime.clip_file = None
         runtime.post_deadline = None
+        if path is not None and path.is_file():
+            archive.enqueue(event_id, path)
 
 
 engine = Engine()
-
-
-def clip_path(event: dict) -> Path | None:
-    raw = event.get("clip_path")
-    if not raw:
-        return None
-    path = Path(raw)
-    return path if path.exists() else None

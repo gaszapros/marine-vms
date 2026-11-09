@@ -14,12 +14,14 @@ import uvicorn
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.background import BackgroundTask
 from pydantic import BaseModel, Field, model_validator
 from contextlib import asynccontextmanager
 
 from app.config import ROOT
 from app import db
-from app.engine import clip_path, engine
+from app.engine import engine
+from app.github_store import GithubError, materialize_clip, parse_ref, present_event
 from app.sources import KINDS
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -120,6 +122,16 @@ def _rule_payload(body: RuleIn) -> dict:
 @app.get("/")
 def index() -> FileResponse:
     return FileResponse(ROOT / "static" / "index.html")
+
+
+@app.get("/app.css")
+def app_css() -> FileResponse:
+    return FileResponse(ROOT / "static" / "app.css", media_type="text/css")
+
+
+@app.get("/app.js")
+def app_js() -> FileResponse:
+    return FileResponse(ROOT / "static" / "app.js", media_type="text/javascript")
 
 
 @app.get("/api/health")
@@ -225,7 +237,7 @@ def remove_rule(rule_id: int) -> dict:
 
 @app.get("/api/events")
 def events(limit: int = 40) -> list:
-    return db.list_events(max(1, min(limit, 200)))
+    return [present_event(event) for event in db.list_events(max(1, min(limit, 200)))]
 
 
 @app.get("/api/events.csv")
@@ -257,7 +269,23 @@ def event_detail(event_id: int) -> dict:
     event = db.get_event(event_id)
     if event is None:
         raise HTTPException(404, "событие не найдено")
-    return event
+    return present_event(event)
+
+
+def _clip_file(event_id: int):
+    event = db.get_event(event_id)
+    if event is None:
+        raise HTTPException(404, "событие не найдено")
+    try:
+        path, temporary = materialize_clip(event)
+    except GithubError:
+        logger.exception("скачивание клипа %s", event_id)
+        raise HTTPException(502, "не удалось скачать клип с GitHub")
+    if path is None:
+        raise HTTPException(404, "файл ещё не готов")
+    parsed = parse_ref(event.get("clip_path"))
+    filename = parsed[1] if parsed else path.name
+    return path, temporary, filename
 
 
 @app.get("/api/events/{event_id}/thumb")
@@ -270,13 +298,9 @@ def event_thumb(event_id: int) -> FileResponse:
 
 @app.get("/api/events/{event_id}/clip")
 def event_clip(event_id: int) -> FileResponse:
-    event = db.get_event(event_id)
-    if event is None:
-        raise HTTPException(404, "событие не найдено")
-    path = clip_path(event)
-    if path is None:
-        raise HTTPException(404, "файл ещё не готов")
-    return FileResponse(path, filename=path.name)
+    path, temporary, filename = _clip_file(event_id)
+    background = BackgroundTask(path.unlink, missing_ok=True) if temporary else None
+    return FileResponse(path, filename=filename, background=background)
 
 
 def _mjpeg(chunks):
@@ -304,12 +328,7 @@ def live(camera_id: int):
 
 @app.get("/api/events/{event_id}/playback")
 def playback(event_id: int):
-    event = db.get_event(event_id)
-    if event is None:
-        raise HTTPException(404, "событие не найдено")
-    path = clip_path(event)
-    if path is None:
-        raise HTTPException(404, "файл ещё пишется или удалён")
+    path, temporary, _filename = _clip_file(event_id)
 
     def gen():
         cap = cv2.VideoCapture(str(path))
@@ -324,6 +343,8 @@ def playback(event_id: int):
                 time.sleep(0.08)
         finally:
             cap.release()
+            if temporary:
+                path.unlink(missing_ok=True)
 
     return _mjpeg(gen())
 

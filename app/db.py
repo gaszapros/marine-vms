@@ -6,6 +6,7 @@ import json
 import sqlite3
 import threading
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 
 from app.config import DB_PATH, ensure_dirs
@@ -299,6 +300,22 @@ def finish_event(event_id: int, ended_at: str, peak_ratio: float, reason: str) -
             "UPDATE events SET ended_at = ?, peak_ratio = ?, reason = ? WHERE id = ?",
             (ended_at, peak_ratio, reason, event_id),
         )
+
+
+def set_clip_path(event_id: int, clip_path: str) -> None:
+    with _lock, connect() as conn:
+        conn.execute("UPDATE events SET clip_path = ? WHERE id = ?", (clip_path, event_id))
+
+
+def find_event_id_by_filename(name: str) -> int | None:
+    with _lock, connect() as conn:
+        rows = conn.execute(
+            "SELECT id, clip_path FROM events WHERE clip_path IS NOT NULL AND clip_path NOT LIKE 'github:%'"
+        ).fetchall()
+    for row in rows:
+        if Path(row["clip_path"]).name == name:
+            return int(row["id"])
+    return None
 
 
 def list_events(limit: int = 50) -> list[dict]:

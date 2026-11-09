@@ -10,8 +10,12 @@ const cards = new Map();
 let cameras = [];
 let rules = [];
 
-async function api(url, options) {
-  const response = await fetch(url, options);
+function url(path) {
+  return new URL(String(path).replace(/^\//, ""), document.baseURI).href;
+}
+
+async function api(path, options) {
+  const response = await fetch(url(path), options);
   if (!response.ok) {
     const text = await response.text();
     throw new Error(text || response.statusText);
@@ -33,7 +37,7 @@ function ensureCard(cam) {
     <img alt="" />
     <header><strong></strong><span class="dot"></span></header>
     <div class="meta"><span class="motion"></span><span class="fps"></span></div>`;
-  card.querySelector("img").src = `/api/cameras/${cam.id}/live`;
+  card.querySelector("img").src = url(`/api/cameras/${cam.id}/live`);
   wall.appendChild(card);
   cards.set(cam.id, card);
   return card;
@@ -240,7 +244,7 @@ function renderRules() {
 let eventStamp = "";
 
 function renderEvents(items) {
-  const stamp = items.map((event) => `${event.id}:${event.ended_at || "open"}`).join("|");
+  const stamp = items.map((event) => `${event.id}:${event.ended_at || "open"}:${event.github_url ? 1 : 0}`).join("|");
   if (stamp === eventStamp) return;
   eventStamp = stamp;
   if (!items.length) {
@@ -250,7 +254,7 @@ function renderEvents(items) {
   eventsEl.innerHTML = items
     .map(
       (event) => `<article class="event">
-        <img src="/api/events/${event.id}/thumb" alt="" />
+        <img src="${url(`/api/events/${event.id}/thumb`)}" alt="" />
         <div>
           <strong>${event.rule_name}</strong>
           <small>${event.camera_name} · ${event.started_at}${event.ended_at ? " → " + event.ended_at.slice(11, 19) : " · идёт"}</small>
@@ -258,7 +262,8 @@ function renderEvents(items) {
         </div>
         <span>
           <button type="button" data-play="${event.id}">Смотреть</button>
-          <a href="/api/events/${event.id}/clip">Файл</a>
+          <a href="${url(`/api/events/${event.id}/clip`)}">Файл</a>
+          ${event.github_url ? `<a href="${event.github_url}" target="_blank" rel="noopener">GitHub</a>` : ""}
         </span>
       </article>`
     )
@@ -392,7 +397,7 @@ document.body.addEventListener("click", async (event) => {
     document.querySelector("#playerTitle").textContent = item ? item.rule_name : "Клип";
     document.querySelector("#playerMeta").textContent = item ? item.reason : "";
     const img = document.querySelector("#playerImg");
-    img.src = `/api/events/${play}/playback?t=${Date.now()}`;
+    img.src = url(`/api/events/${play}/playback?t=${Date.now()}`);
     document.querySelector("#player").showModal();
   }
 });
@@ -432,6 +437,12 @@ async function tick() {
     renderEvents(await api("/api/events"));
   } catch (error) {
     console.error(error);
+    if (!wall.querySelector(".offline")) {
+      wall.insertAdjacentHTML(
+        "afterbegin",
+        `<p class="hint offline">Камеры и запись здесь не запущены. Живой пульт работает на компьютере, где стартовала служба.</p>`
+      );
+    }
   }
 }
 
