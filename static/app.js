@@ -9,6 +9,23 @@ const conditionsEl = document.querySelector("#conditions");
 const cards = new Map();
 let cameras = [];
 let rules = [];
+let publicMode = false;
+const publicPlayers = [];
+
+const PUBLIC_CAMERAS = [
+  {
+    id: "salinas",
+    name: "Перекрёсток Салинас",
+    location: "Market St",
+    src: "https://wzmedia.dot.ca.gov/D5/183atMarketSt.stream/playlist.m3u8",
+  },
+  {
+    id: "sloat",
+    name: "Шоссе у Слоат",
+    location: "Sloat Ave",
+    src: "https://wzmedia.dot.ca.gov/D5/1atSloatAve.stream/playlist.m3u8",
+  },
+];
 
 function url(path) {
   return new URL(String(path).replace(/^\//, ""), document.baseURI).href;
@@ -433,19 +450,70 @@ for (const button of document.querySelectorAll("[data-scenario]")) {
 
 async function tick() {
   try {
-    renderStatus(await api("/api/status"));
+    const status = await api("/api/status");
+    if (publicMode) {
+      publicMode = false;
+      stopPublicPlayers();
+      wall.innerHTML = "";
+      cards.clear();
+    }
+    renderStatus(status);
     renderEvents(await api("/api/events"));
   } catch (error) {
     console.error(error);
-    if (!wall.querySelector(".offline")) {
-      wall.insertAdjacentHTML(
-        "afterbegin",
-        `<p class="hint offline">Камеры и запись здесь не запущены. Живой пульт работает на компьютере, где стартовала служба.</p>`
-      );
+    if (!publicMode) {
+      publicMode = true;
+      showPublicCameras();
     }
   }
 }
 
+function stopPublicPlayers() {
+  for (const player of publicPlayers) player.destroy();
+  publicPlayers.length = 0;
+}
+
+function attachStream(video, src) {
+  video.muted = true;
+  video.autoplay = true;
+  video.playsInline = true;
+  if (video.canPlayType("application/vnd.apple.mpegurl")) {
+    video.src = src;
+    video.play().catch(() => {});
+    return;
+  }
+  if (window.Hls && Hls.isSupported()) {
+    const player = new Hls();
+    player.loadSource(src);
+    player.attachMedia(video);
+    player.on(Hls.Events.MANIFEST_PARSED, () => video.play().catch(() => {}));
+    publicPlayers.push(player);
+  }
+}
+
+function showPublicCameras() {
+  stopPublicPlayers();
+  cards.clear();
+  wall.innerHTML = "";
+  why.innerHTML = "";
+  instruments.innerHTML = instrument("Режим", "прямой эфир");
+  for (const cam of PUBLIC_CAMERAS) {
+    const card = document.createElement("article");
+    card.className = "card";
+    card.innerHTML = `
+      <video muted autoplay playsinline></video>
+      <header><strong></strong><span class="dot">LIVE</span></header>
+      <div class="meta"><span class="motion">прямой эфир</span><span class="fps"></span></div>`;
+    card.querySelector("strong").textContent = `${cam.name} · ${cam.location}`;
+    wall.appendChild(card);
+    attachStream(card.querySelector("video"), cam.src);
+    const item = document.createElement("li");
+    item.textContent = `${cam.name}: прямой эфир`;
+    why.appendChild(item);
+  }
+  eventsEl.innerHTML = `<p class="hint">Журнал и запись ведутся службой на компьютере. Здесь камеры идут в прямом эфире.</p>`;
+}
+
 conditionsEl.appendChild(conditionRow());
-reloadConfig().then(tick);
+reloadConfig().catch(() => {}).finally(tick);
 setInterval(tick, 1500);
