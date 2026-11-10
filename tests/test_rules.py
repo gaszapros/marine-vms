@@ -4,6 +4,7 @@ from datetime import datetime
 import numpy as np
 
 from app.rules import evaluate_rule, mask_ratio, schedule_matches, speed_matches
+from app.vehicles import keep_heavy
 
 
 class ScheduleTests(unittest.TestCase):
@@ -38,6 +39,28 @@ class ScheduleTests(unittest.TestCase):
         self.assertFalse(fired_any)
         fired_motion, _ = evaluate_rule(rule, {**ctx, "armed": False, "speed_kn": 14}, [0.2])
         self.assertTrue(fired_motion)
+
+    def test_heavy_rule_never_starts_recording(self):
+        rule = {"match_mode": "all", "conditions": [{"type": "heavy"}]}
+        ctx = {"now": datetime(2026, 11, 10, 13, 0), "speed_kn": 0.3, "armed": True}
+        fired, note = evaluate_rule(rule, ctx, [])
+        self.assertFalse(fired)
+        self.assertIn("без записи", note)
+        rule["match_mode"] = "any"
+        fired_any, _ = evaluate_rule(rule, ctx, [])
+        self.assertFalse(fired_any)
+
+    def test_keep_heavy_skips_passenger_cars(self):
+        rows = np.array(
+            [
+                [10, 20, 40, 30, 0.9, 2],
+                [100, 80, 50, 40, 0.8, 7],
+                [0, 0, 620, 340, 0.95, 5],
+            ],
+            np.float32,
+        )
+        marks = keep_heavy(rows, (360, 640), 1.0)
+        self.assertEqual(marks, [(100, 80, 50, 40, "грузовик")])
 
     def test_zone_ratio(self):
         mask = np.zeros((100, 100), np.uint8)

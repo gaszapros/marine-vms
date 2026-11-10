@@ -17,7 +17,8 @@ from app.config import FRAME_H, FRAME_W, MEDIA, RECORDINGS_ENABLED, THUMBS, ensu
 from app import db
 from app.github_store import archive
 from app.detectors import MotionDetector, moving_color_mask
-from app.osd import paint
+from app.osd import mark_boxes, paint
+from app.vehicles import finder
 from app.rules import evaluate_rule, mask_ratio
 from app.sources import FrameSource, open_source
 
@@ -47,6 +48,10 @@ class CamRuntime:
     motion_ratio: float = 0.0
     color_ratio: float = 0.0
     watch_color: bool = False
+    watch_heavy: bool = False
+    heavy_boxes: list = field(default_factory=list)
+    heavy_at: float = 0.0
+    heavy_count: int = 0
     matched: list[str] = field(default_factory=list)
     fps: float = 0.0
     frames: int = 0
@@ -139,6 +144,8 @@ class Engine:
                     "rule_name": runtime.rule_name if runtime and runtime.recording else "",
                     "motion_ratio": round(runtime.motion_ratio, 4) if runtime else 0,
                     "color_ratio": round(runtime.color_ratio, 4) if runtime else 0,
+                    "watch_heavy": bool(runtime and runtime.watch_heavy),
+                    "heavy_count": runtime.heavy_count if runtime else 0,
                     "matched": list(runtime.matched) if runtime else [],
                     "fps": round(runtime.fps, 1) if runtime else 0,
                     "error": runtime.error if runtime else None,
@@ -231,14 +238,24 @@ class Engine:
         runtime.error = None if runtime.source.healthy else "нет сигнала"
         mask = runtime.detector.feed(frame)
         runtime.motion_ratio = mask_ratio(mask, None)
-        color_mask = moving_color_mask(frame, mask, "red")
-        runtime.color_ratio = mask_ratio(color_mask, None)
 
         rules = [
             rule
             for rule in self.cache.get("rules", [])
             if rule.get("enabled") and (rule.get("camera_id") in (None, cam["id"]))
         ]
+        runtime.watch_color = any(
+            cond.get("type") == "color"
+            for rule in rules
+            for cond in (rule.get("conditions") or [])
+        )
+        runtime.watch_heavy = any(
+            cond.get("type") == "heavy"
+            for rule in rules
+            for cond in (rule.get("conditions") or [])
+        )
+        color_mask = moving_color_mask(frame, mask, "red") if runtime.watch_color else None
+        runtime.color_ratio = mask_ratio(color_mask, None) if color_mask is not None else 0.0
         telemetry = self.cache.get("telemetry") or {}
         armed = bool(self.cache.get("armed"))
         ctx = {
@@ -253,7 +270,7 @@ class Engine:
             for cond in rule.get("conditions") or []:
                 if cond.get("type") == "motion":
                     ratios.append(mask_ratio(mask, cond.get("zone")))
-                elif cond.get("type") == "color":
+                elif cond.get("type") == "color" and color_mask is not None:
                     color_ratios.append(mask_ratio(color_mask, cond.get("zone")))
             fired, reason = evaluate_rule(rule, ctx, ratios, color_ratios)
             if fired:
@@ -262,12 +279,16 @@ class Engine:
                 matched.append((rule, reason, peak))
 
         runtime.matched = [rule["name"] for rule, _, _ in matched]
-        runtime.watch_color = any(
-            cond.get("type") == "color"
-            for rule in rules
-            for cond in (rule.get("conditions") or [])
-        )
         now = time.monotonic()
+        if runtime.watch_heavy:
+            if runtime.heavy_at <= 0:
+                runtime.heavy_at = now - (0.0 if cam["id"] % 2 == 0 else 0.35)
+            if now - runtime.heavy_at >= 0.7:
+                runtime.heavy_boxes = finder.find(frame)
+                runtime.heavy_at = now
+        else:
+            runtime.heavy_boxes = []
+        runtime.heavy_count = len(runtime.heavy_boxes)
         pre_roll = max((float(rule["pre_roll_sec"]) for rule in rules), default=3.0)
         runtime.buffer.append((now, frame))
         while runtime.buffer and now - runtime.buffer[0][0] > pre_roll:
@@ -292,8 +313,10 @@ class Engine:
                     self._close_clip(runtime, runtime.reason)
 
         shown = _draw_zones(frame, rules)
-        if runtime.watch_color:
+        if runtime.watch_color and color_mask is not None:
             shown = _draw_color(shown, color_mask)
+        if runtime.heavy_boxes:
+            shown = mark_boxes(shown, runtime.heavy_boxes)
         lines = self._lines(cam, ctx, runtime)
         burned = paint(shown, lines, runtime.recording)
         if runtime.writer is not None:
@@ -323,9 +346,11 @@ class Engine:
         elif runtime.matched:
             lines.append("условие: " + ", ".join(runtime.matched))
         else:
-            line = f"ожидание  ·  движение {runtime.motion_ratio * 100:.1f}%"
+            line = f"движение {runtime.motion_ratio * 100:.1f}%"
             if runtime.watch_color:
                 line += f"  ·  красный {runtime.color_ratio * 100:.1f}%"
+            if runtime.watch_heavy:
+                line += f"  ·  не легковые {runtime.heavy_count}"
             lines.append(line)
         return lines
 

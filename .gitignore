@@ -2,6 +2,7 @@
 __pycache__/
 *.py[cod]
 data/
+models/
 *.avi
 *.mp4
 *.log

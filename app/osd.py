@@ -22,6 +22,24 @@ def _font(size: int) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
     return ImageFont.load_default()
 
 
+def mark_boxes(frame: np.ndarray, boxes: list[tuple[int, int, int, int, str]]) -> np.ndarray:
+    if not boxes:
+        return frame
+    img = frame
+    for x, y, width, height, _label in boxes:
+        cv2.rectangle(img, (x, y), (x + width, y + height), (32, 32, 230), 2)
+    rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    pil = Image.fromarray(rgb)
+    draw = ImageDraw.Draw(pil)
+    font = _font(15)
+    for x, y, _width, _height, label in boxes:
+        text_w = int(draw.textlength(label, font=font))
+        top = max(0, y - 18)
+        draw.rectangle((x, top, x + text_w + 8, top + 18), fill=(210, 36, 36))
+        draw.text((x + 4, top), label, font=font, fill=(255, 255, 255))
+    return cv2.cvtColor(np.array(pil.convert("RGB")), cv2.COLOR_RGB2BGR)
+
+
 def paint(frame: np.ndarray, lines: list[str], recording: bool) -> np.ndarray:
     img = frame.copy()
     height, width = img.shape[:2]

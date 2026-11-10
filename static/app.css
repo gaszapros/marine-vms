@@ -70,7 +70,16 @@ a { color: var(--amber); }
   overflow: hidden;
 }
 .card.rec { border-color: var(--rec); box-shadow: inset 0 0 0 1px var(--rec); }
-.card img, .card video { width: 100%; aspect-ratio: 16/9; object-fit: cover; background: #000; display: block; }
+.card img, .card video, .stage canvas { width: 100%; aspect-ratio: 16/9; object-fit: cover; background: #000; display: block; }
+.stage { position: relative; }
+.stage canvas {
+  position: absolute;
+  inset: 0;
+  height: 100%;
+  aspect-ratio: auto;
+  background: transparent;
+  pointer-events: none;
+}
 .card header, .meta { display: flex; justify-content: space-between; gap: 0.5rem; padding: 0.45rem 0.7rem; font-size: 0.86rem; }
 .meta { color: var(--muted); padding-top: 0; }
 .dot { color: var(--rec); font-weight: 700; }

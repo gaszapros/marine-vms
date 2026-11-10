@@ -71,7 +71,7 @@ class ZoneIn(BaseModel):
 
 
 class ConditionIn(BaseModel):
-    type: Literal["motion", "schedule", "speed", "armed", "color"]
+    type: Literal["motion", "schedule", "speed", "armed", "color", "heavy"]
     min_ratio: float | None = Field(default=None, ge=0, le=1)
     color: Literal["red"] | None = None
     zone: ZoneIn | None = None
