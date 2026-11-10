@@ -435,6 +435,7 @@ for (const button of document.querySelectorAll("[data-scenario]")) {
   button.addEventListener("click", () => api(`/api/scenario/${button.dataset.scenario}`, { method: "POST" }));
 }
 
+const CAM_KEY = "marine-vms-cameras";
 const RULE_KEY = "marine-vms-rules";
 const CASE_KEY = "marine-vms-cases";
 const REVIEW_KEY = "marine-vms-reviews";
@@ -453,8 +454,32 @@ function loadJson(key, fallback) {
   }
 }
 
+function escapeHtml(text) {
+  return String(text).replace(/[&<>"']/g, (ch) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#39;",
+  }[ch]));
+}
+
+function extraCameras() {
+  const items = loadJson(CAM_KEY, []);
+  if (!Array.isArray(items)) return [];
+  return items.filter((cam) => cam && cam.id && cam.src && cam.name);
+}
+
+function saveExtras(items) {
+  localStorage.setItem(CAM_KEY, JSON.stringify(items));
+}
+
+function allPublicCameras() {
+  return PUBLIC_CAMERAS.concat(extraCameras());
+}
+
 function defaultRules() {
-  return PUBLIC_CAMERAS.map((cam) => ({
+  return allPublicCameras().map((cam) => ({
     cameraId: cam.id,
     name: "Не легковой автомобиль",
     enabled: true,
@@ -464,9 +489,9 @@ function defaultRules() {
 
 function watchRules() {
   const stored = loadJson(RULE_KEY, null);
-  if (!Array.isArray(stored) || !stored.length) return defaultRules();
-  return PUBLIC_CAMERAS.map((cam) => {
-    const found = stored.find((rule) => rule.cameraId === cam.id);
+  const known = Array.isArray(stored) ? stored : [];
+  return allPublicCameras().map((cam) => {
+    const found = known.find((rule) => rule.cameraId === cam.id);
     return found || { cameraId: cam.id, name: "Не легковой автомобиль", enabled: true, mode: "show" };
   });
 }
@@ -537,15 +562,25 @@ function snapshot(video) {
   }
 }
 
+function renderExtraList() {
+  const items = extraCameras();
+  const list = document.querySelector("#extraList");
+  list.innerHTML = items.length
+    ? items.map((cam) => `<li><span>${escapeHtml(cam.name)}</span>
+        <button type="button" data-drop-extra="${escapeHtml(cam.id)}">Убрать</button></li>`).join("")
+    : "";
+}
+
 function renderPlainRules() {
   const box = document.querySelector("#ruleCards");
   box.innerHTML = watchRules().map((rule) => {
-    const cam = PUBLIC_CAMERAS.find((item) => item.id === rule.cameraId);
+    const cam = allPublicCameras().find((item) => item.id === rule.cameraId);
+    const title = cam ? cam.name : rule.cameraId;
     return `<label class="stack">
-      <span>${cam ? cam.name : rule.cameraId}</span>
-      <input data-rule-name="${rule.cameraId}" value="${rule.name.replace(/"/g, "&quot;")}" />
-      <label class="check"><input data-rule-on="${rule.cameraId}" type="checkbox" ${rule.enabled ? "checked" : ""}/> правило включено</label>
-      <select data-rule-mode="${rule.cameraId}">
+      <span>${escapeHtml(title)}</span>
+      <input data-rule-name="${escapeHtml(rule.cameraId)}" value="${escapeHtml(rule.name)}" />
+      <label class="check"><input data-rule-on="${escapeHtml(rule.cameraId)}" type="checkbox" ${rule.enabled ? "checked" : ""}/> правило включено</label>
+      <select data-rule-mode="${escapeHtml(rule.cameraId)}">
         <option value="show" ${rule.mode === "show" ? "selected" : ""}>только показать</option>
         <option value="call" ${rule.mode === "call" ? "selected" : ""}>позвать и сохранить кадр</option>
       </select>
@@ -554,7 +589,7 @@ function renderPlainRules() {
 }
 
 function readPlainRules() {
-  return PUBLIC_CAMERAS.map((cam) => ({
+  return allPublicCameras().map((cam) => ({
     cameraId: cam.id,
     name: document.querySelector(`[data-rule-name="${cam.id}"]`).value.trim() || "Нарушение",
     enabled: document.querySelector(`[data-rule-on="${cam.id}"]`).checked,
@@ -729,7 +764,7 @@ function showPublicCameras() {
   armBtn.textContent = "На судовом компьютере";
   eventsEl.innerHTML = `<p class="hint">Журнал роликов ведётся на судовом компьютере. Здесь вахта видит живые камеры.</p>`;
   const watches = [];
-  for (const cam of PUBLIC_CAMERAS) {
+  for (const cam of allPublicCameras()) {
     const card = document.createElement("article");
     card.className = "card";
     card.innerHTML = `
@@ -755,6 +790,8 @@ function showPublicCameras() {
     });
   }
   if (window.HeavyWatch) HeavyWatch.start(watches);
+  renderExtraList();
+  renderPlainRules();
   renderPublicQueue();
 }
 
@@ -770,6 +807,54 @@ document.querySelector("#showSetup").addEventListener("click", () => showView("s
 
 document.querySelector("#ruleCards").addEventListener("change", () => {
   saveRules(readPlainRules());
+});
+
+document.querySelector("#addCamera").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const form = event.target;
+  const data = Object.fromEntries(new FormData(form));
+  const name = data.name.trim();
+  const src = data.src.trim();
+  const field = form.querySelector("[name=src]");
+  const ok = /^https?:\/\//i.test(src) || /^rtsp:\/\//i.test(src);
+  field.setCustomValidity(ok ? "" : "Нужен адрес http, https или rtsp");
+  if (!field.reportValidity()) return;
+  if (document.body.classList.contains("local")) {
+    try {
+      await api("/api/cameras", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name,
+          location: (data.location || "").trim(),
+          source_type: "rtsp",
+          source_uri: src,
+          enabled: true,
+          fps: 8,
+        }),
+      });
+      form.reset();
+      await reloadConfig();
+    } catch (error) {
+      alert(error.message);
+    }
+    return;
+  }
+  const id = `extra-${Date.now()}`;
+  saveExtras(extraCameras().concat([{ id, name, location: (data.location || "").trim(), src }]));
+  saveRules(watchRules());
+  form.reset();
+  showPublicCameras();
+});
+
+document.querySelector("#extraList").addEventListener("click", (event) => {
+  const target = event.target;
+  if (!(target instanceof HTMLElement) || !target.dataset.dropExtra) return;
+  const id = target.dataset.dropExtra;
+  saveExtras(extraCameras().filter((cam) => cam.id !== id));
+  saveRules(watchRules().filter((rule) => rule.cameraId !== id));
+  openCalls.delete(id);
+  showPublicCameras();
 });
 
 document.querySelector("#endWatch").addEventListener("click", () => {

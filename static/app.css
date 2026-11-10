@@ -67,17 +67,20 @@ a { color: var(--amber); }
 .arm.on { background: var(--sea); color: #04140f; border-color: transparent; }
 .arm.off { background: #3a2a2a; color: #f0d0d0; }
 
-/* Колонки не тянут друг друга. Камеры по высоте картинки, очередь листается сама. */
+/* Камеры по высоте картинки. Правая плашка и нижняя очередь листаются сами и не растягивают стену. */
 .layout {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(280px, 380px);
-  gap: 1rem;
-  padding: 1rem;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 360px);
+  grid-template-rows: minmax(0, 1fr) minmax(168px, 32vh);
+  gap: 0.8rem;
+  padding: 0.8rem;
   flex: 1;
   min-height: 0;
   align-items: stretch;
 }
 .wall {
+  grid-column: 1;
+  grid-row: 1;
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 0.8rem;
@@ -109,7 +112,10 @@ a { color: var(--amber); }
   50% { box-shadow: 0 0 0 3px rgba(226, 61, 61, 0.55); }
 }
 [hidden] { display: none !important; }
-body.local #plainRules { display: none; }
+body.local #ruleBlock,
+body.local #extraList { display: none; }
+body:not(.local) #showSetup,
+body:not(.local) #localNote,
 body:not(.local) #tech,
 body:not(.local) #journal,
 body:not(.local) #builders { display: none; }
@@ -143,19 +149,40 @@ body:not(.local) #builders { display: none; }
   padding: 0.9rem;
 }
 .side {
+  grid-column: 2;
+  grid-row: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+}
+.dock h2:not(:first-child) { margin-top: 1rem; }
+.queue-bar {
+  grid-column: 1 / -1;
+  grid-row: 2;
   display: flex;
   flex-direction: column;
   min-width: 0;
   min-height: 0;
   overflow: hidden;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0.7rem 0.9rem;
 }
-.side .panel-head { flex: none; align-items: center; }
-.side .panel-head h2 { margin: 0; }
-#queue {
+.panel-head { flex: none; align-items: center; }
+.panel-head h2 { margin: 0; }
+#queue.events {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 0.45rem;
   overflow: auto;
   min-height: 0;
-  padding-right: 0.15rem;
+  align-items: flex-start;
 }
+#queue .case { flex: 0 0 300px; }
+#queue .hint { margin: 0.2rem 0; }
 .hint, .why { color: var(--muted); font-size: 0.88rem; }
 .stack { display: grid; gap: 0.45rem; }
 .stack label { display: grid; gap: 0.2rem; font-size: 0.82rem; color: var(--muted); }
@@ -208,7 +235,10 @@ dialog header { display: flex; justify-content: space-between; align-items: cent
 @media (max-width: 980px) {
   .layout, .wall, .split { grid-template-columns: 1fr; }
   #watch.layout { display: block; overflow: auto; }
-  .wall, .side, #queue { overflow: visible; }
+  .wall, .side, .queue-bar, #queue { overflow: visible; }
+  .queue-bar { max-height: none; }
+  #queue.events { display: grid; }
+  #queue .case { flex: none; }
   .side { max-height: none; }
   .top { flex-wrap: wrap; }
   .brand { min-width: 0; }

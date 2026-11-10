@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Marine VMS</title>
-  <link rel="stylesheet" href="app.css?v=5" />
+  <link rel="stylesheet" href="app.css?v=6" />
 </head>
 <body>
   <header class="top">
@@ -23,22 +23,33 @@
 
   <main class="layout" id="watch">
     <section class="wall" id="wall" aria-label="Камеры"></section>
-    <aside class="side">
+    <aside class="side dock">
+      <h2>Камеры</h2>
+      <p class="hint">Своя камера: название и адрес потока. Она встанет на стену рядом с остальными.</p>
+      <p class="hint" id="localNote">На судовом компьютере камера подключается сюда же. Пороги и журнал — кнопка «Настройка».</p>
+      <form id="addCamera" class="stack">
+        <label>Название <input name="name" required placeholder="Палуба" /></label>
+        <label>Место <input name="location" placeholder="где стоит" /></label>
+        <label>Адрес потока <input name="src" required placeholder="https://…/playlist.m3u8" /></label>
+        <button type="submit">Подключить</button>
+      </form>
+      <ul id="extraList" class="plain"></ul>
+      <div id="ruleBlock">
+        <h2>Правила</h2>
+        <p class="hint">«Показать» только подсвечивает камеру. «Позвать» один раз зовёт и оставляет кадр внизу.</p>
+        <div id="ruleCards" class="stack"></div>
+      </div>
+    </aside>
+    <section class="queue-bar" aria-label="Нарушения">
       <div class="panel-head">
         <h2>Нарушения</h2>
         <button type="button" id="endWatch">Конец вахты</button>
       </div>
       <div id="queue" class="events"></div>
-    </aside>
+    </section>
   </main>
 
   <section id="setup" hidden>
-    <section class="panel" id="plainRules">
-      <h2>Правила вахты</h2>
-      <p class="hint">Камера, название нарушения своими словами и что делать. Пороги скрыты: «показать» только подсвечивает камеру, «позвать» один раз зовёт сотрудника и оставляет кадр в очереди.</p>
-      <div id="ruleCards" class="stack"></div>
-    </section>
-
     <section class="panel" id="tech">
       <h2>Судовой компьютер</h2>
       <p class="hint">Телеметрия и точные пороги нужны для проверки правил. На вахте их нет.</p>
@@ -135,6 +146,6 @@
   </dialog>
   <script src="heavy.js?v=22"></script>
   <script src="hls.min.js?v=5"></script>
-  <script src="app.js?v=7"></script>
+  <script src="app.js?v=8"></script>
 </body>
 </html>
