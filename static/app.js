@@ -14,16 +14,16 @@ const publicPlayers = [];
 
 const PUBLIC_CAMERAS = [
   {
-    id: "salinas",
-    name: "Перекрёсток Салинас",
-    location: "Market St",
-    src: "https://wzmedia.dot.ca.gov/D5/183atMarketSt.stream/playlist.m3u8",
+    id: "cuomo",
+    name: "Мост Куомо",
+    location: "I-87, Нью-Йорк",
+    src: "https://s58.nysdot.skyvdn.com:443/rtplive/TA_168/playlist.m3u8",
   },
   {
-    id: "sloat",
-    name: "Шоссе у Слоат",
-    location: "Sloat Ave",
-    src: "https://wzmedia.dot.ca.gov/D5/1atSloatAve.stream/playlist.m3u8",
+    id: "i66",
+    name: "Шоссе I-66",
+    location: "Гейнсвилл, Виргиния",
+    src: "https://media-sfs8.vdotcameras.com:443/rtplive/NROCCTVI66E00501/playlist.m3u8",
   },
 ];
 
