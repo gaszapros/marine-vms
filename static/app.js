@@ -24,6 +24,12 @@ const PUBLIC_CAMERAS = [
     location: "Гейнсвилл, Виргиния",
     src: "https://media-sfs8.vdotcameras.com:443/rtplive/NROCCTVI66E00501/playlist.m3u8",
   },
+  {
+    id: "i66-61",
+    name: "Шоссе I-66, 61-я миля",
+    location: "Фэрфакс, Виргиния",
+    src: "https://media-sfs8.vdotcameras.com:443/rtplive/NROCCTVI66E00610/playlist.m3u8",
+  },
 ];
 
 function url(path) {
@@ -469,7 +475,8 @@ function escapeHtml(text) {
 function extraCameras() {
   const items = loadJson(CAM_KEY, []);
   if (!Array.isArray(items)) return [];
-  return items.filter((cam) => cam && cam.id && cam.src && cam.name);
+  const builtIn = new Set(PUBLIC_CAMERAS.map((cam) => cam.src));
+  return items.filter((cam) => cam && cam.id && cam.src && cam.name && !builtIn.has(cam.src));
 }
 
 function saveExtras(items) {
