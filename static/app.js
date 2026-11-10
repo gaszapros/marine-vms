@@ -85,16 +85,17 @@ function renderStatus(status) {
     seen.add(cam.id);
     const card = ensureCard(cam);
     card.classList.toggle("rec", cam.recording);
+    card.classList.toggle("alert", Boolean(cam.watch_heavy && cam.heavy_count));
     card.querySelector("strong").textContent = `${cam.name} · ${cam.location || ""}`;
     card.querySelector(".dot").textContent = cam.recording ? "REC" : cam.error || "LIVE";
     const red = cam.color_ratio ? ` · красный ${(cam.color_ratio * 100).toFixed(1)}%` : "";
-    const heavy = cam.watch_heavy ? ` · не легковые ${cam.heavy_count || 0}` : "";
+    const heavy = cam.watch_heavy && cam.heavy_count ? " · не легковой в кадре" : "";
     card.querySelector(".motion").textContent = `движение ${(cam.motion_ratio * 100).toFixed(1)}%${red}${heavy}`;
     card.querySelector(".fps").textContent = `${cam.fps.toFixed(1)} к/с`;
     const item = document.createElement("li");
     const active = cam.matched.length ? cam.matched.join(", ") : cam.rule_name;
     const showing = cam.watch_heavy
-      ? `${cam.name}: показ, без записи${cam.heavy_count ? ` — не легковые ${cam.heavy_count}` : ""}`
+      ? `${cam.name}: ${cam.heavy_count ? "не легковой в кадре" : "показ, без записи"}`
       : "";
     item.textContent = cam.recording
       ? `${cam.name}: пишется — ${active || "правило"}`
@@ -140,7 +141,7 @@ function conditionRow(cond = { type: "motion", min_ratio: 0.02 }) {
         <option value="schedule">Расписание</option>
         <option value="armed">Вахта принята</option>
         <option value="color">Красный автомобиль</option>
-        <option value="heavy">Не легковой: красный квадрат</option>
+        <option value="heavy">Не легковой: подсветка камеры</option>
       </select>
     </label>
     <div class="fields"></div>
@@ -185,7 +186,7 @@ function conditionRow(cond = { type: "motion", min_ratio: 0.02 }) {
         </div>
         <p class="hint">Стоп-сигнал и светофор не считаются: нужно движущееся красное пятно размером с кузов.</p>`;
     } else if (type === "heavy") {
-      fields.innerHTML = `<p class="hint">Автобус и грузовик обводятся красным квадратом на живом видео. Легковые не выделяются. Запись не начинается.</p>`;
+      fields.innerHTML = `<p class="hint">Когда в кадре автобус или грузовик, карточка камеры подсвечивается красным. Легковые не считаются. Запись не начинается.</p>`;
     } else if (type === "schedule") {
       fields.innerHTML = `
         <label>С <input class="start" type="time" value="${cond.start || "18:00"}" /></label>
@@ -525,25 +526,26 @@ function showPublicCameras() {
     const card = document.createElement("article");
     card.className = "card";
     card.innerHTML = `
-      <div class="stage"><video muted autoplay playsinline></video><canvas></canvas></div>
+      <div class="stage"><video muted autoplay playsinline></video></div>
       <header><strong></strong><span class="dot">LIVE</span></header>
       <div class="meta"><span class="motion">показ, без записи</span><span class="fps">загрузка</span></div>`;
     card.querySelector("strong").textContent = `${cam.name} · ${cam.location}`;
     wall.appendChild(card);
     const video = card.querySelector("video");
-    const canvas = card.querySelector("canvas");
     attachStream(video, cam.src);
     const item = document.createElement("li");
     item.textContent = `${cam.name}: показ, без записи`;
     why.appendChild(item);
     watches.push({
       video,
-      canvas,
-      onMarks(boxes) {
-        card.querySelector(".motion").textContent = `не легковые ${boxes.length}`;
+      onMarks(count) {
+        card.classList.toggle("alert", count > 0);
+        card.querySelector(".motion").textContent = count
+          ? "не легковой в кадре"
+          : "показ, без записи";
         card.querySelector(".fps").textContent = "без записи";
-        item.textContent = boxes.length
-          ? `${cam.name}: показ, без записи — не легковые ${boxes.length}`
+        item.textContent = count
+          ? `${cam.name}: не легковой в кадре`
           : `${cam.name}: показ, без записи`;
       },
       onError() {
@@ -552,7 +554,7 @@ function showPublicCameras() {
     });
   }
   if (window.HeavyWatch) HeavyWatch.start(watches);
-  eventsEl.innerHTML = `<p class="hint">Прямой эфир с GitHub. Автобус и грузовик отмечаются красным квадратом. Запись не ведётся.</p>`;
+  eventsEl.innerHTML = `<p class="hint">Прямой эфир с GitHub. Камера подсвечивается красным, когда проезжает автобус или грузовик. Запись не ведётся.</p>`;
 }
 
 conditionsEl.appendChild(conditionRow());

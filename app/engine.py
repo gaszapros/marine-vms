@@ -17,7 +17,7 @@ from app.config import FRAME_H, FRAME_W, MEDIA, RECORDINGS_ENABLED, THUMBS, ensu
 from app import db
 from app.github_store import archive
 from app.detectors import MotionDetector, moving_color_mask
-from app.osd import mark_boxes, paint
+from app.osd import paint
 from app.vehicles import finder
 from app.rules import evaluate_rule, mask_ratio
 from app.sources import FrameSource, open_source
@@ -315,8 +315,6 @@ class Engine:
         shown = _draw_zones(frame, rules)
         if runtime.watch_color and color_mask is not None:
             shown = _draw_color(shown, color_mask)
-        if runtime.heavy_boxes:
-            shown = mark_boxes(shown, runtime.heavy_boxes)
         lines = self._lines(cam, ctx, runtime)
         burned = paint(shown, lines, runtime.recording)
         if runtime.writer is not None:
@@ -349,8 +347,8 @@ class Engine:
             line = f"движение {runtime.motion_ratio * 100:.1f}%"
             if runtime.watch_color:
                 line += f"  ·  красный {runtime.color_ratio * 100:.1f}%"
-            if runtime.watch_heavy:
-                line += f"  ·  не легковые {runtime.heavy_count}"
+            if runtime.watch_heavy and runtime.heavy_count:
+                line += "  ·  не легковой в кадре"
             lines.append(line)
         return lines
 

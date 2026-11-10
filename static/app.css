@@ -70,6 +70,14 @@ a { color: var(--amber); }
   overflow: hidden;
 }
 .card.rec { border-color: var(--rec); box-shadow: inset 0 0 0 1px var(--rec); }
+.card.alert {
+  border-color: #ff2a2a;
+  background: #4a1216;
+  outline: 4px solid #ff2a2a;
+  box-shadow: 0 0 0 4px #ff2a2a, 0 0 42px 10px rgba(255, 40, 40, 0.7);
+}
+.card.alert header { background: #8d1d22; }
+.card.alert .motion { color: #ffd6d6; font-weight: 700; }
 .card img, .card video, .stage canvas { width: 100%; aspect-ratio: 16/9; object-fit: cover; background: #000; display: block; }
 .stage { position: relative; }
 .stage canvas {
