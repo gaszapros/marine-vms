@@ -79,7 +79,14 @@ window.HeavyWatch = (() => {
       input[plane + i] = rgba[offset + 1];
       input[plane * 2 + i] = rgba[offset + 2];
     }
-    return { input, scaleX: resizedW / width, scaleY: resizedH / height, width, height };
+    return {
+      input,
+      scaleX: resizedW / width,
+      scaleY: resizedH / height,
+      width,
+      height,
+      small: width < 480,
+    };
   }
 
   function overlap(left, right) {
@@ -97,10 +104,13 @@ window.HeavyWatch = (() => {
     const count = output.dims[1];
     const widthOut = output.dims[2];
     const found = [];
+    const confidence = sample.small ? 0.2 : CONFIDENCE;
+    const minW = sample.small ? 8 : 16;
+    const minH = sample.small ? 8 : 14;
     for (let i = 0; i < count; i += 1) {
       const base = i * widthOut;
       const objectness = data[base + 4];
-      if (objectness < 0.25) continue;
+      if (objectness < 0.15) continue;
       let best = 0;
       let score = 0;
       for (let cls = 0; cls < 80; cls += 1) {
@@ -110,7 +120,7 @@ window.HeavyWatch = (() => {
           best = cls;
         }
       }
-      if (!LABELS[best] || score < CONFIDENCE) continue;
+      if (!LABELS[best] || score < confidence) continue;
       const centerX = (data[base] + anchors.gx[i]) * anchors.step[i];
       const centerY = (data[base + 1] + anchors.gy[i]) * anchors.step[i];
       const boxW = Math.exp(data[base + 2]) * anchors.step[i];
@@ -122,7 +132,7 @@ window.HeavyWatch = (() => {
         h: boxH / sample.scaleY,
         score,
       };
-      if (box.w < 16 || box.h < 14) continue;
+      if (box.w < minW || box.h < minH) continue;
       if (box.w > sample.width * 0.92 && box.h > sample.height * 0.92) continue;
       found.push(box);
     }
