@@ -106,7 +106,9 @@ a { color: var(--amber); }
   height: auto;
   min-width: 0;
   max-width: 100%;
+  cursor: pointer;
 }
+.card:focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; }
 .card.rec { border-color: var(--rec); box-shadow: inset 0 0 0 1px var(--rec); }
 .card.alert {
   border-color: #ff2a2a;
@@ -240,6 +242,20 @@ dialog {
 }
 dialog img { width: 100%; background: #000; }
 dialog header { display: flex; justify-content: space-between; align-items: center; }
+dialog::backdrop { background: rgba(4, 8, 12, 0.78); }
+#cameraView {
+  width: min(1180px, 96vw);
+  max-height: 94vh;
+  padding: 0.7rem 0.8rem 0.9rem;
+}
+#cameraView header { margin-bottom: 0.6rem; }
+#cameraView video, #cameraView img {
+  width: 100%;
+  max-height: min(78vh, 820px);
+  object-fit: contain;
+  background: #000;
+  display: block;
+}
 .cond {
   border: 1px dashed var(--line);
   padding: 0.5rem;

@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Marine VMS</title>
-  <link rel="stylesheet" href="app.css?v=7" />
+  <link rel="stylesheet" href="app.css?v=8" />
 </head>
 <body>
   <header class="top">
@@ -136,6 +136,16 @@
     </section>
   </section>
 
+  <dialog id="cameraView">
+    <form method="dialog">
+      <header>
+        <strong id="cameraViewTitle">Камера</strong>
+        <button value="cancel">Закрыть</button>
+      </header>
+      <video id="cameraViewVideo" hidden muted autoplay playsinline></video>
+      <img id="cameraViewImg" hidden alt="" />
+    </form>
+  </dialog>
   <dialog id="player">
     <form method="dialog">
       <header>
@@ -148,6 +158,6 @@
   </dialog>
   <script src="heavy.js?v=22"></script>
   <script src="hls.min.js?v=5"></script>
-  <script src="app.js?v=8"></script>
+  <script src="app.js?v=9"></script>
 </body>
 </html>

@@ -48,7 +48,9 @@ function ensureCard(cam) {
   card.innerHTML = `
     <img alt="" />
     <header><strong></strong></header>`;
-  card.querySelector("img").src = url(`/api/cameras/${cam.id}/live`);
+  card.dataset.kind = "mjpeg";
+  card.dataset.stream = url(`/api/cameras/${cam.id}/live`);
+  markCameraCard(card, cam.name);
   wall.appendChild(card);
   cards.set(cam.id, card);
   return card;
@@ -72,7 +74,7 @@ function renderStatus(status) {
     const card = ensureCard(cam);
     card.classList.toggle("rec", cam.recording);
     card.classList.toggle("alert", Boolean(cam.watch_heavy && cam.heavy_count));
-    card.querySelector("strong").textContent = cam.name;
+    markCameraCard(card, cam.name);
   }
   for (const [id, card] of cards) {
     if (!seen.has(id)) {
@@ -728,6 +730,61 @@ function stopPublicPlayers() {
   armBtn.disabled = false;
 }
 
+function markCameraCard(card, name) {
+  card.dataset.title = name;
+  card.tabIndex = 0;
+  card.setAttribute("role", "button");
+  card.setAttribute("aria-label", `Открыть крупно: ${name}`);
+  const title = card.querySelector("strong");
+  if (title) title.textContent = name;
+}
+
+let zoomPlayer = null;
+
+function closeZoom() {
+  if (zoomPlayer) {
+    zoomPlayer.detachMedia();
+    zoomPlayer.destroy();
+    zoomPlayer = null;
+  }
+  const video = document.querySelector("#cameraViewVideo");
+  const img = document.querySelector("#cameraViewImg");
+  video.pause();
+  video.removeAttribute("src");
+  video.load();
+  video.hidden = true;
+  img.removeAttribute("src");
+  img.hidden = true;
+}
+
+function openCamera(card) {
+  const src = card.dataset.stream;
+  if (!src) return;
+  closeZoom();
+  const name = card.dataset.title || "Камера";
+  document.querySelector("#cameraViewTitle").textContent = name;
+  const video = document.querySelector("#cameraViewVideo");
+  const img = document.querySelector("#cameraViewImg");
+  if (card.dataset.kind === "mjpeg") {
+    img.hidden = false;
+    img.alt = name;
+    img.src = src;
+  } else {
+    video.hidden = false;
+    video.muted = true;
+    if (window.Hls && Hls.isSupported()) {
+      zoomPlayer = new Hls();
+      zoomPlayer.loadSource(src);
+      zoomPlayer.attachMedia(video);
+      zoomPlayer.on(Hls.Events.MANIFEST_PARSED, () => video.play().catch(() => {}));
+    } else {
+      video.src = src;
+      video.play().catch(() => {});
+    }
+  }
+  document.querySelector("#cameraView").showModal();
+}
+
 function attachStream(video, src) {
   video.muted = true;
   video.autoplay = true;
@@ -770,7 +827,9 @@ function showPublicCameras() {
     card.innerHTML = `
       <div class="stage"><video muted autoplay playsinline></video></div>
       <header><strong></strong><span class="signal"></span></header>`;
-    card.querySelector("strong").textContent = cam.name;
+    card.dataset.kind = "hls";
+    card.dataset.stream = cam.src;
+    markCameraCard(card, cam.name);
     wall.appendChild(card);
     const video = card.querySelector("video");
     attachStream(video, cam.src);
@@ -801,6 +860,23 @@ function showView(name) {
   document.querySelector("#showWatch").classList.toggle("on", name === "watch");
   document.querySelector("#showSetup").classList.toggle("on", name === "setup");
 }
+
+wall.addEventListener("click", (event) => {
+  const card = event.target.closest(".card");
+  if (card) openCamera(card);
+});
+wall.addEventListener("keydown", (event) => {
+  if (event.key !== "Enter" && event.key !== " ") return;
+  const card = event.target.closest(".card");
+  if (!card) return;
+  event.preventDefault();
+  openCamera(card);
+});
+const cameraView = document.querySelector("#cameraView");
+cameraView.addEventListener("close", closeZoom);
+cameraView.addEventListener("click", (event) => {
+  if (event.target === cameraView) cameraView.close();
+});
 
 document.querySelector("#showWatch").addEventListener("click", () => showView("watch"));
 document.querySelector("#showSetup").addEventListener("click", () => showView("setup"));
