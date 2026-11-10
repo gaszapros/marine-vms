@@ -190,7 +190,7 @@ window.HeavyWatch = (() => {
           if (count > 0) entry.seen = now;
           const active = count > 0 || (entry.seen > 0 && now - entry.seen < 2500);
           const shown = active ? 1 : 0;
-          if (shown !== entry.shown) {
+          if (shown !== entry.shown || shown) {
             entry.shown = shown;
             entry.onMarks(shown);
           }

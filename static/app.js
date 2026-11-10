@@ -1,8 +1,7 @@
 const wall = document.querySelector("#wall");
-const instruments = document.querySelector("#instruments");
 const armBtn = document.querySelector("#armBtn");
-const why = document.querySelector("#why");
 const eventsEl = document.querySelector("#events");
+const queueEl = document.querySelector("#queue");
 const cameraForm = document.querySelector("#cameraForm");
 const ruleForm = document.querySelector("#ruleForm");
 const conditionsEl = document.querySelector("#conditions");
@@ -41,10 +40,6 @@ async function api(path, options) {
   return type.includes("json") ? response.json() : response.text();
 }
 
-function instrument(label, value) {
-  return `<div class="instrument"><span>${label}</span><b>${value}</b></div>`;
-}
-
 function ensureCard(cam) {
   let card = cards.get(cam.id);
   if (card) return card;
@@ -52,8 +47,7 @@ function ensureCard(cam) {
   card.className = "card";
   card.innerHTML = `
     <img alt="" />
-    <header><strong></strong><span class="dot"></span></header>
-    <div class="meta"><span class="motion"></span><span class="fps"></span></div>`;
+    <header><strong></strong></header>`;
   card.querySelector("img").src = url(`/api/cameras/${cam.id}/live`);
   wall.appendChild(card);
   cards.set(cam.id, card);
@@ -62,13 +56,6 @@ function ensureCard(cam) {
 
 function renderStatus(status) {
   const tel = status.telemetry || {};
-  const speed = Number(tel.speed_kn || 0);
-  instruments.innerHTML = [
-    instrument("Скорость", `${speed.toFixed(1)} уз`),
-    instrument("Курс", `${Math.round(tel.heading || 0)}°`),
-    instrument("Позиция", `${Number(tel.lat || 0).toFixed(3)}, ${Number(tel.lon || 0).toFixed(3)}`),
-    instrument("Режим", tel.mode || "manual"),
-  ].join("");
   armBtn.textContent = status.armed ? "Вахта принята" : "Вахта снята";
   armBtn.className = status.armed ? "arm on" : "arm off";
   const form = document.querySelector("#telemetryForm");
@@ -79,28 +66,13 @@ function renderStatus(status) {
     form.lon.value = tel.lon ?? "";
   }
   const seen = new Set();
-  why.innerHTML = "";
   for (const cam of status.cameras) {
     if (!cam.enabled) continue;
     seen.add(cam.id);
     const card = ensureCard(cam);
     card.classList.toggle("rec", cam.recording);
     card.classList.toggle("alert", Boolean(cam.watch_heavy && cam.heavy_count));
-    card.querySelector("strong").textContent = `${cam.name} · ${cam.location || ""}`;
-    card.querySelector(".dot").textContent = cam.recording ? "REC" : cam.error || "LIVE";
-    const red = cam.color_ratio ? ` · красный ${(cam.color_ratio * 100).toFixed(1)}%` : "";
-    const heavy = cam.watch_heavy && cam.heavy_count ? " · не легковой в кадре" : "";
-    card.querySelector(".motion").textContent = `движение ${(cam.motion_ratio * 100).toFixed(1)}%${red}${heavy}`;
-    card.querySelector(".fps").textContent = `${cam.fps.toFixed(1)} к/с`;
-    const item = document.createElement("li");
-    const active = cam.matched.length ? cam.matched.join(", ") : cam.rule_name;
-    const showing = cam.watch_heavy
-      ? `${cam.name}: ${cam.heavy_count ? "не легковой в кадре" : "показ, без записи"}`
-      : "";
-    item.textContent = cam.recording
-      ? `${cam.name}: пишется — ${active || "правило"}`
-      : showing || `${cam.name}: ${cam.matched.length ? "условие есть, пауза после клипа" : "ждёт условие"}`;
-    why.appendChild(item);
+    card.querySelector("strong").textContent = cam.name;
   }
   for (const [id, card] of cards) {
     if (!seen.has(id)) {
@@ -271,12 +243,16 @@ function renderRules() {
 
 let eventStamp = "";
 
+let lastEvents = [];
+
 function renderEvents(items) {
+  lastEvents = items;
   const stamp = items.map((event) => `${event.id}:${event.ended_at || "open"}:${event.github_url ? 1 : 0}`).join("|");
   if (stamp === eventStamp) return;
   eventStamp = stamp;
+  renderLocalQueue(items);
   if (!items.length) {
-    eventsEl.innerHTML = `<p class="hint">Клипов ещё нет. На стоянке трап и палуба дадут запись в течение полуминуты.</p>`;
+    eventsEl.innerHTML = `<p class="hint">Записей на судовом компьютере ещё нет.</p>`;
     return;
   }
   eventsEl.innerHTML = items
@@ -459,6 +435,235 @@ for (const button of document.querySelectorAll("[data-scenario]")) {
   button.addEventListener("click", () => api(`/api/scenario/${button.dataset.scenario}`, { method: "POST" }));
 }
 
+const RULE_KEY = "marine-vms-rules";
+const CASE_KEY = "marine-vms-cases";
+const REVIEW_KEY = "marine-vms-reviews";
+const HIDDEN_KEY = "marine-vms-hidden";
+const openCalls = new Map();
+const seenEvents = new Set();
+let queueReady = false;
+let audioCtx = null;
+
+function loadJson(key, fallback) {
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function defaultRules() {
+  return PUBLIC_CAMERAS.map((cam) => ({
+    cameraId: cam.id,
+    name: "Не легковой автомобиль",
+    enabled: true,
+    mode: "show",
+  }));
+}
+
+function watchRules() {
+  const stored = loadJson(RULE_KEY, null);
+  if (!Array.isArray(stored) || !stored.length) return defaultRules();
+  return PUBLIC_CAMERAS.map((cam) => {
+    const found = stored.find((rule) => rule.cameraId === cam.id);
+    return found || { cameraId: cam.id, name: "Не легковой автомобиль", enabled: true, mode: "show" };
+  });
+}
+
+function saveRules(items) {
+  localStorage.setItem(RULE_KEY, JSON.stringify(items));
+}
+
+function watchCases() {
+  const items = loadJson(CASE_KEY, []);
+  return Array.isArray(items) ? items : [];
+}
+
+function saveCases(items) {
+  localStorage.setItem(CASE_KEY, JSON.stringify(items.slice(0, 30)));
+}
+
+function reviews() {
+  return loadJson(REVIEW_KEY, {});
+}
+
+function saveReview(id, status) {
+  const all = reviews();
+  all[String(id)] = status;
+  localStorage.setItem(REVIEW_KEY, JSON.stringify(all));
+}
+
+function hiddenEvents() {
+  return new Set(loadJson(HIDDEN_KEY, []));
+}
+
+function clock(iso) {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return iso;
+  return date.toLocaleString("ru", { hour: "2-digit", minute: "2-digit", second: "2-digit", day: "2-digit", month: "2-digit" });
+}
+
+function beep() {
+  const Ctx = window.AudioContext || window.webkitAudioContext;
+  if (!Ctx) return;
+  if (!audioCtx) audioCtx = new Ctx();
+  if (audioCtx.state === "suspended") audioCtx.resume().catch(() => {});
+  const now = audioCtx.currentTime;
+  const tone = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  tone.frequency.value = 880;
+  tone.connect(gain);
+  gain.connect(audioCtx.destination);
+  gain.gain.setValueAtTime(0.0001, now);
+  gain.gain.exponentialRampToValueAtTime(0.12, now + 0.02);
+  gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.28);
+  tone.start(now);
+  tone.stop(now + 0.3);
+}
+
+function snapshot(video) {
+  if (!video.videoWidth) return "";
+  const canvas = document.createElement("canvas");
+  const width = 320;
+  const height = Math.max(1, Math.round(width * video.videoHeight / video.videoWidth));
+  canvas.width = width;
+  canvas.height = height;
+  canvas.getContext("2d").drawImage(video, 0, 0, width, height);
+  try {
+    return canvas.toDataURL("image/jpeg", 0.62);
+  } catch {
+    return "";
+  }
+}
+
+function renderPlainRules() {
+  const box = document.querySelector("#ruleCards");
+  box.innerHTML = watchRules().map((rule) => {
+    const cam = PUBLIC_CAMERAS.find((item) => item.id === rule.cameraId);
+    return `<label class="stack">
+      <span>${cam ? cam.name : rule.cameraId}</span>
+      <input data-rule-name="${rule.cameraId}" value="${rule.name.replace(/"/g, "&quot;")}" />
+      <label class="check"><input data-rule-on="${rule.cameraId}" type="checkbox" ${rule.enabled ? "checked" : ""}/> правило включено</label>
+      <select data-rule-mode="${rule.cameraId}">
+        <option value="show" ${rule.mode === "show" ? "selected" : ""}>только показать</option>
+        <option value="call" ${rule.mode === "call" ? "selected" : ""}>позвать и сохранить кадр</option>
+      </select>
+    </label>`;
+  }).join("");
+}
+
+function readPlainRules() {
+  return PUBLIC_CAMERAS.map((cam) => ({
+    cameraId: cam.id,
+    name: document.querySelector(`[data-rule-name="${cam.id}"]`).value.trim() || "Нарушение",
+    enabled: document.querySelector(`[data-rule-on="${cam.id}"]`).checked,
+    mode: document.querySelector(`[data-rule-mode="${cam.id}"]`).value,
+  }));
+}
+
+function emptyQueue(text) {
+  queueEl.innerHTML = `<p class="hint">${text}</p>`;
+}
+
+function renderPublicQueue() {
+  const items = watchCases();
+  if (!items.length) {
+    emptyQueue("Тихо. Камера подсветится, когда правило что-то найдёт. Список здесь появится, если в настройке выбран режим «позвать».");
+    return;
+  }
+  queueEl.innerHTML = items.map((item) => {
+    const calling = item.status === "open" && !item.acked && openCalls.has(item.cameraId);
+    const done = item.status !== "open";
+    const label = item.status === "confirmed" ? "подтверждено" : item.status === "false" ? "ложная тревога" : "";
+    return `<article class="event case${calling ? " calling" : ""}${done ? " done" : ""}">
+      <img src="${item.frame || "data:image/gif;base64,R0lGODlhAQABAAAAACw="}" alt="" />
+      <div>
+        <strong>${item.ruleName}</strong>
+        <small>${item.cameraName} · ${clock(item.at)}</small>
+        <small>${label}</small>
+      </div>
+      <span class="actions">
+        <button type="button" data-open-case="${item.id}">Открыть</button>
+        ${item.status === "open" && !item.acked ? `<button type="button" data-ack="${item.id}">Принял</button>` : ""}
+        ${item.status === "open" ? `<button type="button" data-confirm="${item.id}">Подтвердить</button><button type="button" data-false="${item.id}">Ложная тревога</button>` : ""}
+      </span>
+    </article>`;
+  }).join("");
+}
+
+function renderLocalQueue(items) {
+  if (publicMode) return;
+  const enabled = new Set(cameras.filter((cam) => cam.enabled).map((cam) => cam.id));
+  const hidden = hiddenEvents();
+  const visible = items.filter((event) => enabled.has(event.camera_id) && !hidden.has(event.id));
+  const fresh = visible.filter((event) => !seenEvents.has(event.id));
+  const wasReady = queueReady;
+  if (wasReady && fresh.length) beep();
+  for (const event of visible) seenEvents.add(event.id);
+  queueReady = true;
+  if (!visible.length) {
+    emptyQueue("Тихо. Неразобранных случаев нет.");
+    return;
+  }
+  const marks = reviews();
+  queueEl.innerHTML = visible.map((event) => {
+    const mark = marks[String(event.id)] || "";
+    const calling = wasReady && !mark && fresh.some((item) => item.id === event.id);
+    const done = mark === "confirmed" || mark === "false";
+    const label = mark === "confirmed" ? "подтверждено" : mark === "false" ? "ложная тревога" : "";
+    return `<article class="event case${calling ? " calling" : ""}${done ? " done" : ""}">
+      <img src="${url(`/api/events/${event.id}/thumb`)}" alt="" />
+      <div>
+        <strong>${event.rule_name}</strong>
+        <small>${event.camera_name} · ${event.started_at}</small>
+        <small>${label}</small>
+      </div>
+      <span class="actions">
+        <button type="button" data-play="${event.id}">Открыть</button>
+        ${!mark ? `<button type="button" data-ack-event="${event.id}">Принял</button>` : ""}
+        ${!done ? `<button type="button" data-confirm-event="${event.id}">Подтвердить</button><button type="button" data-false-event="${event.id}">Ложная тревога</button>` : ""}
+      </span>
+    </article>`;
+  }).join("");
+}
+
+function noteCall(cam, rule, active, video) {
+  const current = openCalls.get(cam.id);
+  if (!active) {
+    openCalls.delete(cam.id);
+    return;
+  }
+  if (current) return;
+  const item = {
+    id: `${cam.id}-${Date.now()}`,
+    cameraId: cam.id,
+    cameraName: cam.name,
+    ruleName: rule.name,
+    at: new Date().toISOString(),
+    frame: snapshot(video),
+    status: "open",
+    acked: false,
+  };
+  openCalls.set(cam.id, item);
+  saveCases([item, ...watchCases()]);
+  renderPublicQueue();
+  beep();
+}
+
+function patchCase(id, change) {
+  const items = watchCases().map((item) => (item.id === id ? { ...item, ...change } : item));
+  saveCases(items);
+  const open = [...openCalls.entries()].find(([, item]) => item.id === id);
+  if (open) openCalls.set(open[0], { ...open[1], ...change });
+  renderPublicQueue();
+}
+
+function renderPlainAndQueue() {
+  renderPlainRules();
+  if (publicMode) renderPublicQueue();
+}
+
 async function tick() {
   try {
     const status = await api("/api/status");
@@ -468,10 +673,12 @@ async function tick() {
       wall.innerHTML = "";
       cards.clear();
     }
+    document.body.classList.add("local");
     renderStatus(status);
     renderEvents(await api("/api/events"));
   } catch (error) {
     console.error(error);
+    document.body.classList.remove("local");
     if (!publicMode) {
       publicMode = true;
       showPublicCameras();
@@ -491,8 +698,9 @@ function attachStream(video, src) {
   video.autoplay = true;
   video.playsInline = true;
   const mark = (text) => {
-    const note = video.closest(".card") && video.closest(".card").querySelector(".fps");
-    if (note && note.textContent === "загрузка") note.textContent = text;
+    if (text !== "нет сигнала") return;
+    const note = video.closest(".card") && video.closest(".card").querySelector(".signal");
+    if (note) note.textContent = text;
   };
   if (window.Hls && Hls.isSupported()) {
     const player = new Hls();
@@ -517,46 +725,93 @@ function showPublicCameras() {
   stopPublicPlayers();
   cards.clear();
   wall.innerHTML = "";
-  why.innerHTML = "";
-  instruments.innerHTML = instrument("Режим", "прямой эфир");
   armBtn.disabled = true;
-  armBtn.textContent = "Прямой эфир";
+  armBtn.textContent = "На судовом компьютере";
+  eventsEl.innerHTML = `<p class="hint">Журнал роликов ведётся на судовом компьютере. Здесь вахта видит живые камеры.</p>`;
   const watches = [];
   for (const cam of PUBLIC_CAMERAS) {
     const card = document.createElement("article");
     card.className = "card";
     card.innerHTML = `
       <div class="stage"><video muted autoplay playsinline></video></div>
-      <header><strong></strong><span class="dot">LIVE</span></header>
-      <div class="meta"><span class="motion">показ, без записи</span><span class="fps">загрузка</span></div>`;
-    card.querySelector("strong").textContent = `${cam.name} · ${cam.location}`;
+      <header><strong></strong><span class="signal"></span></header>`;
+    card.querySelector("strong").textContent = cam.name;
     wall.appendChild(card);
     const video = card.querySelector("video");
     attachStream(video, cam.src);
-    const item = document.createElement("li");
-    item.textContent = `${cam.name}: показ, без записи`;
-    why.appendChild(item);
     watches.push({
       video,
       onMarks(count) {
-        card.classList.toggle("alert", count > 0);
-        card.querySelector(".motion").textContent = count
-          ? "не легковой в кадре"
-          : "показ, без записи";
-        card.querySelector(".fps").textContent = "без записи";
-        item.textContent = count
-          ? `${cam.name}: не легковой в кадре`
-          : `${cam.name}: показ, без записи`;
+        const rule = watchRules().find((item) => item.cameraId === cam.id) || { enabled: true, mode: "show", name: "Нарушение" };
+        const active = count > 0 && rule.enabled;
+        card.classList.toggle("alert", active);
+        if (rule.mode === "call") noteCall(cam, rule, active, video);
+        else openCalls.delete(cam.id);
       },
       onError() {
-        card.querySelector(".fps").textContent = "показ недоступен";
+        const slot = card.querySelector(".signal");
+        if (slot) slot.textContent = "нет сигнала";
       },
     });
   }
   if (window.HeavyWatch) HeavyWatch.start(watches);
-  eventsEl.innerHTML = `<p class="hint">Прямой эфир с GitHub. Камера подсвечивается красным, когда проезжает автобус или грузовик. Запись не ведётся.</p>`;
+  renderPublicQueue();
 }
 
+function showView(name) {
+  document.querySelector("#watch").hidden = name !== "watch";
+  document.querySelector("#setup").hidden = name !== "setup";
+  document.querySelector("#showWatch").classList.toggle("on", name === "watch");
+  document.querySelector("#showSetup").classList.toggle("on", name === "setup");
+}
+
+document.querySelector("#showWatch").addEventListener("click", () => showView("watch"));
+document.querySelector("#showSetup").addEventListener("click", () => showView("setup"));
+
+document.querySelector("#ruleCards").addEventListener("change", () => {
+  saveRules(readPlainRules());
+});
+
+document.querySelector("#endWatch").addEventListener("click", () => {
+  if (publicMode) {
+    saveCases([]);
+    openCalls.clear();
+    renderPublicQueue();
+    return;
+  }
+  const hidden = hiddenEvents();
+  for (const event of lastEvents) hidden.add(event.id);
+  localStorage.setItem(HIDDEN_KEY, JSON.stringify([...hidden]));
+  renderLocalQueue(lastEvents);
+});
+
+queueEl.addEventListener("click", (event) => {
+  const target = event.target;
+  if (!(target instanceof HTMLElement)) return;
+  const caseId = target.dataset.openCase || target.dataset.ack || target.dataset.confirm || target.dataset.false;
+  if (target.dataset.openCase) {
+    const item = watchCases().find((row) => row.id === target.dataset.openCase);
+    if (!item) return;
+    document.querySelector("#playerTitle").textContent = item.ruleName;
+    document.querySelector("#playerMeta").textContent = `${item.cameraName} · ${clock(item.at)}`;
+    document.querySelector("#playerImg").src = item.frame || "";
+    document.querySelector("#player").showModal();
+  }
+  if (target.dataset.ack) patchCase(caseId, { acked: true });
+  if (target.dataset.confirm) patchCase(caseId, { status: "confirmed", acked: true });
+  if (target.dataset.false) patchCase(caseId, { status: "false", acked: true });
+  const eventId = target.dataset.ackEvent || target.dataset.confirmEvent || target.dataset.falseEvent;
+  if (target.dataset.ackEvent) saveReview(eventId, "acked");
+  if (target.dataset.confirmEvent) saveReview(eventId, "confirmed");
+  if (target.dataset.falseEvent) saveReview(eventId, "false");
+  if (eventId) renderLocalQueue(lastEvents);
+});
+
+document.addEventListener("pointerdown", () => {
+  if (audioCtx && audioCtx.state === "suspended") audioCtx.resume().catch(() => {});
+});
+
+renderPlainRules();
 conditionsEl.appendChild(conditionRow());
 reloadConfig().catch(() => {}).finally(tick);
 setInterval(tick, 1500);

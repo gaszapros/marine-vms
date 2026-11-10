@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Marine VMS</title>
-  <link rel="stylesheet" href="app.css?v=3" />
+  <link rel="stylesheet" href="app.css?v=4" />
 </head>
 <body>
   <header class="top">
@@ -12,19 +12,38 @@
       <span class="mark">MV</span>
       <div>
         <strong>Marine VMS</strong>
-        <small>запись только по условию</small>
+        <small>вахта</small>
       </div>
     </div>
-    <div class="instruments" id="instruments"></div>
-    <button id="armBtn" class="arm" type="button">Вахта</button>
+    <nav class="nav">
+      <button type="button" id="showWatch" class="on">Вахта</button>
+      <button type="button" id="showSetup">Настройка</button>
+    </nav>
   </header>
 
-  <main class="layout">
+  <main class="layout" id="watch">
     <section class="wall" id="wall" aria-label="Камеры"></section>
     <aside class="side">
-      <h2>Режим судна</h2>
-      <p class="hint">Палубное правило молчит на ходу: скорость должна быть ниже 3 узлов.</p>
+      <div class="panel-head">
+        <h2>Нарушения</h2>
+        <button type="button" id="endWatch">Конец вахты</button>
+      </div>
+      <div id="queue" class="events"></div>
+    </aside>
+  </main>
+
+  <section id="setup" hidden>
+    <section class="panel" id="plainRules">
+      <h2>Правила вахты</h2>
+      <p class="hint">Камера, название нарушения своими словами и что делать. Пороги скрыты: «показать» только подсвечивает камеру, «позвать» один раз зовёт сотрудника и оставляет кадр в очереди.</p>
+      <div id="ruleCards" class="stack"></div>
+    </section>
+
+    <section class="panel" id="tech">
+      <h2>Судовой компьютер</h2>
+      <p class="hint">Телеметрия и точные пороги нужны для проверки правил. На вахте их нет.</p>
       <div class="row">
+        <button id="armBtn" class="arm" type="button">Вахта</button>
         <button type="button" data-scenario="alongside">Стоянка</button>
         <button type="button" data-scenario="maneuver">Манёвр</button>
         <button type="button" data-scenario="sea">Ход в море</button>
@@ -36,88 +55,86 @@
         <label>Долгота <input name="lon" type="number" step="0.0001" /></label>
         <button type="submit">Принять телеметрию</button>
       </form>
-      <h2>Сейчас на камерах</h2>
-      <ul id="why" class="why"></ul>
-    </aside>
-  </main>
+    </section>
 
-  <section class="panel">
-    <div class="panel-head">
-      <h2>Журнал</h2>
-      <a href="api/events.csv">Скачать CSV</a>
-    </div>
-    <div id="events" class="events"></div>
-  </section>
+    <section class="panel" id="journal">
+      <div class="panel-head">
+        <h2>Журнал</h2>
+        <a id="csvLink" href="api/events.csv">Скачать CSV</a>
+      </div>
+      <div id="events" class="events"></div>
+    </section>
 
-  <section class="panel split">
-    <div>
-      <h2>Камеры</h2>
-      <form id="cameraForm" class="stack">
-        <input type="hidden" name="id" />
-        <label>Название <input name="name" required /></label>
-        <label>Место <input name="location" /></label>
-        <label>Источник
-          <select name="source_type">
-            <option value="synthetic">Имитатор судна</option>
-            <option value="rtsp">RTSP</option>
-            <option value="webcam">Веб-камера</option>
-            <option value="file">Видеофайл</option>
-          </select>
-        </label>
-        <label>Адрес или сцена
-          <input name="source_uri" placeholder="bridge / rtsp://… / 0 / C:\video.mp4" />
-        </label>
-        <label class="check"><input name="enabled" type="checkbox" checked /> включена</label>
-        <div class="row">
-          <button type="submit">Сохранить камеру</button>
-          <button type="button" id="cameraReset">Новая</button>
-        </div>
-      </form>
-      <ul id="cameraList" class="plain"></ul>
-    </div>
-    <div>
-      <h2>Правила</h2>
-      <form id="ruleForm" class="stack">
-        <input type="hidden" name="id" />
-        <label>Название <input name="name" required /></label>
-        <label>Камера
-          <select name="camera_id" id="ruleCamera"></select>
-        </label>
-        <label>Совпадение
-          <select name="match_mode">
-            <option value="all">все условия сразу</option>
-            <option value="any">любое условие</option>
-          </select>
-        </label>
-        <div class="row three">
-          <label>До, с <input name="pre_roll_sec" type="number" value="3" min="0" step="1" /></label>
-          <label>После, с <input name="post_roll_sec" type="number" value="4" min="0" step="1" /></label>
-          <label>Пауза, с <input name="cooldown_sec" type="number" value="8" min="0" step="1" /></label>
-        </div>
-        <div id="conditions"></div>
-        <button type="button" id="addCond">Добавить условие</button>
-        <label class="check"><input name="enabled" type="checkbox" checked /> правило включено</label>
-        <div class="row">
-          <button type="submit">Сохранить правило</button>
-          <button type="button" id="ruleReset">Новое</button>
-        </div>
-      </form>
-      <ul id="ruleList" class="plain"></ul>
-    </div>
+    <section class="panel split" id="builders">
+      <div>
+        <h2>Камеры</h2>
+        <form id="cameraForm" class="stack">
+          <input type="hidden" name="id" />
+          <label>Название <input name="name" required /></label>
+          <label>Место <input name="location" /></label>
+          <label>Источник
+            <select name="source_type">
+              <option value="synthetic">Имитатор судна</option>
+              <option value="rtsp">RTSP</option>
+              <option value="webcam">Веб-камера</option>
+              <option value="file">Видеофайл</option>
+            </select>
+          </label>
+          <label>Адрес или сцена
+            <input name="source_uri" placeholder="bridge / rtsp://… / 0 / C:\video.mp4" />
+          </label>
+          <label class="check"><input name="enabled" type="checkbox" checked /> включена</label>
+          <div class="row">
+            <button type="submit">Сохранить камеру</button>
+            <button type="button" id="cameraReset">Новая</button>
+          </div>
+        </form>
+        <ul id="cameraList" class="plain"></ul>
+      </div>
+      <div>
+        <h2>Пороги</h2>
+        <form id="ruleForm" class="stack">
+          <input type="hidden" name="id" />
+          <label>Название <input name="name" required /></label>
+          <label>Камера
+            <select name="camera_id" id="ruleCamera"></select>
+          </label>
+          <label>Совпадение
+            <select name="match_mode">
+              <option value="all">все условия сразу</option>
+              <option value="any">любое условие</option>
+            </select>
+          </label>
+          <div class="row three">
+            <label>До, с <input name="pre_roll_sec" type="number" value="3" min="0" step="1" /></label>
+            <label>После, с <input name="post_roll_sec" type="number" value="4" min="0" step="1" /></label>
+            <label>Пауза, с <input name="cooldown_sec" type="number" value="8" min="0" step="1" /></label>
+          </div>
+          <div id="conditions"></div>
+          <button type="button" id="addCond">Добавить условие</button>
+          <label class="check"><input name="enabled" type="checkbox" checked /> правило включено</label>
+          <div class="row">
+            <button type="submit">Сохранить правило</button>
+            <button type="button" id="ruleReset">Новое</button>
+          </div>
+        </form>
+        <ul id="ruleList" class="plain"></ul>
+      </div>
+    </section>
   </section>
 
   <dialog id="player">
     <form method="dialog">
       <header>
-        <strong id="playerTitle">Клип</strong>
+        <strong id="playerTitle">Кадр</strong>
         <button value="cancel">Закрыть</button>
       </header>
-      <img id="playerImg" alt="Воспроизведение клипа" />
+      <img id="playerImg" alt="Кадр нарушения" />
       <p id="playerMeta"></p>
     </form>
   </dialog>
-  <script src="heavy.js?v=21"></script>
+  <script src="heavy.js?v=22"></script>
   <script src="hls.min.js?v=5"></script>
-  <script src="app.js?v=6"></script>
+  <script src="app.js?v=7"></script>
 </body>
 </html>
