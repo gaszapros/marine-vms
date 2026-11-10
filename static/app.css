@@ -13,8 +13,12 @@
 }
 
 * { box-sizing: border-box; }
+html, body { height: 100%; }
 body {
   margin: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
   background:
     radial-gradient(1200px 400px at 10% -10%, #163044, transparent 50%),
     var(--bg);
@@ -36,13 +40,13 @@ a { color: var(--amber); }
 
 .top {
   display: flex;
-  gap: 1.5rem;
+  gap: 1rem;
   align-items: center;
-  padding: 0.8rem 1.2rem;
+  flex: none;
+  z-index: 2;
+  padding: 0.7rem 1rem;
   border-bottom: 1px solid var(--line);
-  background: rgba(8, 16, 24, 0.9);
-  position: sticky;
-  top: 0;
+  background: #071018;
 }
 .brand { display: flex; gap: 0.7rem; align-items: center; min-width: 220px; }
 .brand strong { display: block; font-family: var(--display); letter-spacing: 0.08em; }
@@ -63,13 +67,32 @@ a { color: var(--amber); }
 .arm.on { background: var(--sea); color: #04140f; border-color: transparent; }
 .arm.off { background: #3a2a2a; color: #f0d0d0; }
 
-.layout { display: grid; grid-template-columns: 1fr 320px; gap: 1rem; padding: 1rem; }
-.wall { display: grid; grid-template-columns: 1fr 1fr; gap: 0.8rem; }
+/* Колонки не тянут друг друга. Камеры по высоте картинки, очередь листается сама. */
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 380px);
+  gap: 1rem;
+  padding: 1rem;
+  flex: 1;
+  min-height: 0;
+  align-items: stretch;
+}
+.wall {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.8rem;
+  align-content: start;
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+}
 .card {
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: 8px;
   overflow: hidden;
+  align-self: start;
+  height: auto;
 }
 .card.rec { border-color: var(--rec); box-shadow: inset 0 0 0 1px var(--rec); }
 .card.alert {
@@ -82,7 +105,6 @@ a { color: var(--amber); }
 .card header .signal { color: var(--muted); font-size: 0.78rem; }
 .case.calling { animation: call 1.2s ease-in-out infinite; }
 .case.done { opacity: 0.55; }
-.case .actions { display: flex; flex-wrap: wrap; gap: 0.3rem; justify-content: flex-end; }
 @keyframes call {
   50% { box-shadow: 0 0 0 3px rgba(226, 61, 61, 0.55); }
 }
@@ -91,7 +113,15 @@ body.local #plainRules { display: none; }
 body:not(.local) #tech,
 body:not(.local) #journal,
 body:not(.local) #builders { display: none; }
-.card img, .card video, .stage canvas { width: 100%; aspect-ratio: 16/9; object-fit: cover; background: #000; display: block; }
+.card img, .card video, .stage canvas {
+  width: 100%;
+  height: auto;
+  max-height: none;
+  aspect-ratio: 16/9;
+  object-fit: cover;
+  background: #000;
+  display: block;
+}
 .stage { position: relative; }
 .stage canvas {
   position: absolute;
@@ -112,26 +142,51 @@ body:not(.local) #builders { display: none; }
   border-radius: 8px;
   padding: 0.9rem;
 }
+.side {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+.side .panel-head { flex: none; align-items: center; }
+.side .panel-head h2 { margin: 0; }
+#queue {
+  overflow: auto;
+  min-height: 0;
+  padding-right: 0.15rem;
+}
 .hint, .why { color: var(--muted); font-size: 0.88rem; }
 .stack { display: grid; gap: 0.45rem; }
 .stack label { display: grid; gap: 0.2rem; font-size: 0.82rem; color: var(--muted); }
 .row { display: flex; gap: 0.4rem; flex-wrap: wrap; }
 .row.three label { flex: 1; }
 .check { display: flex !important; align-items: center; gap: 0.4rem; }
+#setup { overflow: auto; flex: 1; min-height: 0; padding-top: 1rem; }
 .panel { margin: 0 1rem 1rem; }
 .panel-head, .split { display: flex; justify-content: space-between; gap: 1rem; }
 .split > div { flex: 1; }
 .events { display: grid; gap: 0.45rem; }
 .event {
   display: grid;
-  grid-template-columns: 96px 1fr auto;
-  gap: 0.7rem;
+  grid-template-columns: 96px minmax(0, 1fr);
+  gap: 0.55rem 0.7rem;
   align-items: center;
-  padding: 0.4rem;
+  padding: 0.45rem;
   border: 1px solid var(--line);
   border-radius: 6px;
 }
 .event img { width: 96px; height: 54px; object-fit: cover; background: #000; }
+.event strong { display: block; overflow-wrap: anywhere; }
+.event > span { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 0.35rem; }
+.case .actions {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  justify-content: flex-start;
+}
+.case .actions button { white-space: nowrap; }
 .event small { color: var(--muted); display: block; }
 .plain { list-style: none; padding: 0; }
 .plain li { display: flex; justify-content: space-between; gap: 0.5rem; padding: 0.35rem 0; border-bottom: 1px solid var(--line); }
@@ -151,6 +206,10 @@ dialog header { display: flex; justify-content: space-between; align-items: cent
   gap: 0.35rem;
 }
 @media (max-width: 980px) {
-  .layout, .wall, .split { grid-template-columns: 1fr; display: grid; }
+  .layout, .wall, .split { grid-template-columns: 1fr; }
+  #watch.layout { display: block; overflow: auto; }
+  .wall, .side, #queue { overflow: visible; }
+  .side { max-height: none; }
   .top { flex-wrap: wrap; }
+  .brand { min-width: 0; }
 }
