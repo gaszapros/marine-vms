@@ -477,18 +477,27 @@ function attachStream(video, src) {
   video.muted = true;
   video.autoplay = true;
   video.playsInline = true;
-  if (video.canPlayType("application/vnd.apple.mpegurl")) {
-    video.src = src;
-    video.play().catch(() => {});
-    return;
-  }
+  const mark = (text) => {
+    const note = video.parentElement && video.parentElement.querySelector(".fps");
+    if (note) note.textContent = text;
+  };
   if (window.Hls && Hls.isSupported()) {
     const player = new Hls();
     player.loadSource(src);
     player.attachMedia(video);
-    player.on(Hls.Events.MANIFEST_PARSED, () => video.play().catch(() => {}));
+    player.on(Hls.Events.ERROR, (_, data) => {
+      if (data.fatal) mark("нет сигнала");
+    });
+    player.on(Hls.Events.MANIFEST_PARSED, () => {
+      mark("идёт");
+      video.play().catch(() => {});
+    });
     publicPlayers.push(player);
+    return;
   }
+  video.src = src;
+  video.addEventListener("error", () => mark("нет сигнала"));
+  video.play().then(() => mark("идёт")).catch(() => mark("нет сигнала"));
 }
 
 function showPublicCameras() {
