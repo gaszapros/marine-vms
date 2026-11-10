@@ -53,7 +53,7 @@ function ensureCard(cam) {
   card.className = "card";
   card.innerHTML = `
     <img alt="" />
-    <header><strong></strong></header>`;
+    <header><div><strong></strong><small class="place"></small></div></header>`;
   card.dataset.kind = "mjpeg";
   card.dataset.stream = url(`/api/cameras/${cam.id}/live`);
   markCameraCard(card, cam.name);
@@ -81,6 +81,8 @@ function renderStatus(status) {
     card.classList.toggle("rec", cam.recording);
     card.classList.toggle("alert", Boolean(cam.watch_heavy && cam.heavy_count));
     markCameraCard(card, cam.name);
+    const place = card.querySelector(".place");
+    if (place) place.textContent = cam.location || "";
   }
   for (const [id, card] of cards) {
     if (!seen.has(id)) {
@@ -833,10 +835,12 @@ function showPublicCameras() {
     card.className = "card";
     card.innerHTML = `
       <div class="stage"><video muted autoplay playsinline></video></div>
-      <header><strong></strong><span class="signal"></span></header>`;
+      <header><div><strong></strong><small class="place"></small></div><span class="signal"></span></header>`;
     card.dataset.kind = "hls";
     card.dataset.stream = cam.src;
     markCameraCard(card, cam.name);
+    const place = card.querySelector(".place");
+    if (place) place.textContent = cam.location || "";
     wall.appendChild(card);
     const video = card.querySelector("video");
     attachStream(video, cam.src);
@@ -979,7 +983,17 @@ document.addEventListener("pointerdown", () => {
   if (audioCtx && audioCtx.state === "suspended") audioCtx.resume().catch(() => {});
 });
 
+function paintClock() {
+  const node = document.querySelector("#watchClock");
+  if (!node) return;
+  const now = new Date();
+  node.dateTime = now.toISOString();
+  node.textContent = now.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+}
+
 renderPlainRules();
 conditionsEl.appendChild(conditionRow());
+paintClock();
+setInterval(paintClock, 1000);
 reloadConfig().catch(() => {}).finally(tick);
 setInterval(tick, 1500);
