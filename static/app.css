@@ -62,25 +62,22 @@ a { color: var(--amber); }
   border-bottom: 1px solid var(--line);
   background: #0c141b;
 }
-.brand { display: flex; gap: 0.75rem; align-items: center; min-width: 200px; }
-.brand strong {
-  display: block;
-  font-family: var(--display);
-  font-size: 0.95rem;
-  letter-spacing: 0.02em;
+.brand {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  max-width: min(220px, 48vw);
+  flex: 0 1 auto;
 }
-.brand small { color: var(--muted); letter-spacing: 0.04em; }
-.mark {
-  width: 36px;
-  height: 36px;
-  display: grid;
-  place-items: center;
-  border-radius: 9px;
-  background: linear-gradient(160deg, #e8c27a, #b7782c);
-  color: #1a1204;
-  font-family: var(--display);
-  font-weight: 700;
-  letter-spacing: 0.04em;
+.brand img {
+  display: block;
+  height: 64px;
+  width: auto;
+  max-width: 100%;
+  min-width: 0;
+  object-fit: contain;
+  object-position: left center;
+  border-radius: 8px;
 }
 .clock {
   margin-left: auto;
@@ -350,6 +347,10 @@ dialog::backdrop { background: rgba(4, 8, 12, 0.78); }
   #queue.events { display: grid; }
   #queue .case { flex: none; }
   .top { flex-wrap: wrap; }
-  .brand { min-width: 0; }
+  .brand { min-width: 0; max-width: min(220px, 70vw); }
+  .brand img { height: 48px; }
   .clock { margin-left: 0; }
+}
+@media (max-width: 480px) {
+  .brand img { height: 40px; }
 }
