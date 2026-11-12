@@ -131,29 +131,52 @@ a { color: var(--amber); }
   min-height: 0;
 }
 .dock { order: -1; }
+.side.dock {
+  overflow: hidden;
+  transition:
+    flex-basis 0.42s cubic-bezier(0.22, 0.8, 0.24, 1),
+    width 0.42s cubic-bezier(0.22, 0.8, 0.24, 1),
+    max-width 0.42s cubic-bezier(0.22, 0.8, 0.24, 1),
+    padding 0.42s ease;
+}
 .dock-bar {
   display: flex;
   justify-content: flex-end;
   flex: none;
 }
 .dock-bar button { padding: 0.32rem 0.7rem; }
+#dockBody {
+  flex: 1 1 auto;
+  min-width: 300px;
+  min-height: 0;
+  overflow: auto;
+  opacity: 1;
+  transition: opacity 0.32s ease;
+}
 .stage-row.folded .dock {
   flex: 0 0 52px;
   width: 52px;
   max-width: 52px;
   padding: 0.45rem 0.3rem;
-  overflow: hidden;
 }
-.stage-row.folded #dockBody { display: none; }
-.stage-row.folded .dock-bar {
+.stage-row.folded #dockBody {
+  opacity: 0;
+  pointer-events: none;
+}
+.stage-row.folded.settled .dock-bar {
   height: 100%;
   justify-content: center;
   align-items: flex-start;
 }
-.stage-row.folded .dock-bar button {
+.stage-row.folded.settled .dock-bar button {
   writing-mode: vertical-rl;
   transform: rotate(180deg);
   padding: 0.8rem 0.35rem;
+}
+.stage-row.no-motion .dock,
+.stage-row.no-motion #dockBody { transition: none; }
+@media (prefers-reduced-motion: reduce) {
+  .dock, #dockBody { transition: none; }
 }
 .wall {
   flex: 1 1 auto;
@@ -428,8 +451,10 @@ dialog::backdrop { background: rgba(4, 8, 12, 0.78); }
   .stage { flex: none; aspect-ratio: 16 / 9; }
   .side { order: 0; flex: none; width: auto; max-width: none; }
   .stage-row.folded .dock { flex: none; width: auto; max-width: none; height: auto; padding: 0.95rem; }
-  .stage-row.folded .dock-bar { height: auto; justify-content: flex-end; }
-  .stage-row.folded .dock-bar button { writing-mode: horizontal-tb; transform: none; padding: 0.32rem 0.7rem; }
+  .stage-row.folded .dock-bar,
+  .stage-row.folded.settled .dock-bar { height: auto; justify-content: flex-end; }
+  .stage-row.folded .dock-bar button,
+  .stage-row.folded.settled .dock-bar button { writing-mode: horizontal-tb; transform: none; padding: 0.32rem 0.7rem; }
   .queue-bar, #queue { overflow: visible; }
   .queue-bar { height: auto; }
   #queue.events { display: grid; }

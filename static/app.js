@@ -1151,18 +1151,29 @@ document.querySelector("#showSetup").addEventListener("click", () => showView("s
 const DOCK_KEY = "marine-online-dock";
 const stageRow = document.querySelector(".stage-row");
 const foldDock = document.querySelector("#foldDock");
+const dock = document.querySelector("#dock");
+const dockMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
 
-function setDockFolded(folded) {
+function setDockFolded(folded, animate = true) {
+  const motion = animate && !dockMotion.matches;
+  if (!motion) stageRow.classList.add("no-motion");
   stageRow.classList.toggle("folded", folded);
+  if (!folded || !motion) stageRow.classList.toggle("settled", folded);
   foldDock.setAttribute("aria-expanded", folded ? "false" : "true");
   foldDock.textContent = folded ? "Настройки" : "Свернуть";
   localStorage.setItem(DOCK_KEY, folded ? "1" : "0");
+  if (!motion) requestAnimationFrame(() => stageRow.classList.remove("no-motion"));
 }
+
+dock.addEventListener("transitionend", (event) => {
+  if (event.target !== dock || event.propertyName !== "width") return;
+  if (stageRow.classList.contains("folded")) stageRow.classList.add("settled");
+});
 
 foldDock.addEventListener("click", () => {
   setDockFolded(!stageRow.classList.contains("folded"));
 });
-setDockFolded(localStorage.getItem(DOCK_KEY) === "1");
+setDockFolded(localStorage.getItem(DOCK_KEY) === "1", false);
 
 document.querySelector("#conditionList").addEventListener("click", (event) => {
   const pick = event.target.closest("[data-pick-condition]");
