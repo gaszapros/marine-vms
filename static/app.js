@@ -1148,6 +1148,22 @@ cameraView.addEventListener("click", (event) => {
 document.querySelector("#showWatch").addEventListener("click", () => showView("watch"));
 document.querySelector("#showSetup").addEventListener("click", () => showView("setup"));
 
+const DOCK_KEY = "marine-online-dock";
+const stageRow = document.querySelector(".stage-row");
+const foldDock = document.querySelector("#foldDock");
+
+function setDockFolded(folded) {
+  stageRow.classList.toggle("folded", folded);
+  foldDock.setAttribute("aria-expanded", folded ? "false" : "true");
+  foldDock.textContent = folded ? "Настройки" : "Свернуть";
+  localStorage.setItem(DOCK_KEY, folded ? "1" : "0");
+}
+
+foldDock.addEventListener("click", () => {
+  setDockFolded(!stageRow.classList.contains("folded"));
+});
+setDockFolded(localStorage.getItem(DOCK_KEY) === "1");
+
 document.querySelector("#conditionList").addEventListener("click", (event) => {
   const pick = event.target.closest("[data-pick-condition]");
   if (!pick) return;
