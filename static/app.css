@@ -120,7 +120,7 @@ a { color: var(--amber); }
   order: 0;
   display: grid;
   grid-template-columns: 1fr 1fr;
-  grid-template-rows: 1fr 1fr;
+  grid-template-rows: 1fr 1fr 1fr;
   gap: 0.65rem;
   align-content: stretch;
   align-items: stretch;

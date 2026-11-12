@@ -36,6 +36,18 @@ const PUBLIC_CAMERAS = [
     location: "Атчафалайя, Луизиана",
     src: "https://ITSStreamingBR2.dotd.la.gov/public/shr-cam-001.streams/playlist.m3u8",
   },
+  {
+    id: "i10-whiskey",
+    name: "Шоссе I-10, Уиски-Бэй",
+    location: "Уиски-Бэй, Луизиана",
+    src: "https://ITSStreamingBR2.dotd.la.gov/public/shr-cam-005.streams/playlist.m3u8",
+  },
+  {
+    id: "i10-henderson",
+    name: "Шоссе I-10, Хендерсон",
+    location: "Хендерсон, Луизиана",
+    src: "https://ITSStreamingBR2.dotd.la.gov/public/shr-cam-007.streams/playlist.m3u8",
+  },
 ];
 
 function url(path) {
