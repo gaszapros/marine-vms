@@ -67,8 +67,7 @@ a { color: var(--amber); }
   display: block;
   font-family: var(--display);
   font-size: 0.95rem;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
+  letter-spacing: 0.02em;
 }
 .brand small { color: var(--muted); letter-spacing: 0.04em; }
 .mark {

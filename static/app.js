@@ -445,21 +445,26 @@ for (const button of document.querySelectorAll("[data-scenario]")) {
   button.addEventListener("click", () => api(`/api/scenario/${button.dataset.scenario}`, { method: "POST" }));
 }
 
-const CAM_KEY = "shipweb-cameras";
-const RULE_KEY = "shipweb-rules";
-const CASE_KEY = "shipweb-cases";
-const REVIEW_KEY = "shipweb-reviews";
-const HIDDEN_KEY = "shipweb-hidden";
+const CAM_KEY = "marine-online-cameras";
+const RULE_KEY = "marine-online-rules";
+const CASE_KEY = "marine-online-cases";
+const REVIEW_KEY = "marine-online-reviews";
+const HIDDEN_KEY = "marine-online-hidden";
 
-for (const [next, prev] of [
-  [CAM_KEY, "marine-vms-cameras"],
-  [RULE_KEY, "marine-vms-rules"],
-  [CASE_KEY, "marine-vms-cases"],
-  [REVIEW_KEY, "marine-vms-reviews"],
-  [HIDDEN_KEY, "marine-vms-hidden"],
+for (const [next, older] of [
+  [CAM_KEY, ["shipweb-cameras", "marine-vms-cameras"]],
+  [RULE_KEY, ["shipweb-rules", "marine-vms-rules"]],
+  [CASE_KEY, ["shipweb-cases", "marine-vms-cases"]],
+  [REVIEW_KEY, ["shipweb-reviews", "marine-vms-reviews"]],
+  [HIDDEN_KEY, ["shipweb-hidden", "marine-vms-hidden"]],
 ]) {
-  if (localStorage.getItem(next) == null && localStorage.getItem(prev) != null) {
-    localStorage.setItem(next, localStorage.getItem(prev));
+  if (localStorage.getItem(next) != null) continue;
+  for (const prev of older) {
+    const saved = localStorage.getItem(prev);
+    if (saved != null) {
+      localStorage.setItem(next, saved);
+      break;
+    }
   }
 }
 const openCalls = new Map();
