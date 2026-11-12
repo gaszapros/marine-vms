@@ -118,7 +118,7 @@ class GithubStore:
         headers = {
             "Authorization": f"Bearer {self._token()}",
             "Accept": accept or "application/vnd.github+json",
-            "User-Agent": "marine-vms",
+            "User-Agent": "shipweb",
             "X-GitHub-Api-Version": "2022-11-28",
         }
         if content_type:
@@ -159,7 +159,7 @@ class GithubStore:
                         "tag_name": self.tag,
                         "target_commitish": "main",
                         "name": "Записи камер",
-                        "body": "Клипы Marine VMS. В ветке main только код.",
+                        "body": "Клипы SHIPWEB. В ветке main только код.",
                     },
                 )
             except GithubError as exc:

@@ -445,11 +445,23 @@ for (const button of document.querySelectorAll("[data-scenario]")) {
   button.addEventListener("click", () => api(`/api/scenario/${button.dataset.scenario}`, { method: "POST" }));
 }
 
-const CAM_KEY = "marine-vms-cameras";
-const RULE_KEY = "marine-vms-rules";
-const CASE_KEY = "marine-vms-cases";
-const REVIEW_KEY = "marine-vms-reviews";
-const HIDDEN_KEY = "marine-vms-hidden";
+const CAM_KEY = "shipweb-cameras";
+const RULE_KEY = "shipweb-rules";
+const CASE_KEY = "shipweb-cases";
+const REVIEW_KEY = "shipweb-reviews";
+const HIDDEN_KEY = "shipweb-hidden";
+
+for (const [next, prev] of [
+  [CAM_KEY, "marine-vms-cameras"],
+  [RULE_KEY, "marine-vms-rules"],
+  [CASE_KEY, "marine-vms-cases"],
+  [REVIEW_KEY, "marine-vms-reviews"],
+  [HIDDEN_KEY, "marine-vms-hidden"],
+]) {
+  if (localStorage.getItem(next) == null && localStorage.getItem(prev) != null) {
+    localStorage.setItem(next, localStorage.getItem(prev));
+  }
+}
 const openCalls = new Map();
 const seenEvents = new Set();
 let queueReady = false;

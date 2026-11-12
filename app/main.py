@@ -1,4 +1,4 @@
-"""HTTP-пульт Marine VMS."""
+"""HTTP-пульт SHIPWEB."""
 
 from __future__ import annotations
 
@@ -33,12 +33,12 @@ async def lifespan(_app: FastAPI):
     db.init_db()
     db.seed_if_empty()
     engine.start()
-    logger.info("Marine VMS слушает пульт")
+    logger.info("SHIPWEB слушает пульт")
     yield
     engine.shutdown()
 
 
-app = FastAPI(title="Marine VMS", version="1.0.0", lifespan=lifespan)
+app = FastAPI(title="SHIPWEB", version="1.0.0", lifespan=lifespan)
 app.mount("/assets", StaticFiles(directory=ROOT / "static"), name="assets")
 
 
@@ -136,7 +136,7 @@ def app_js() -> FileResponse:
 
 @app.get("/api/health")
 def health() -> dict:
-    return {"ok": True, "product": "Marine VMS"}
+    return {"ok": True, "product": "SHIPWEB"}
 
 
 @app.get("/api/status")
@@ -260,7 +260,7 @@ def events_csv() -> Response:
     return Response(
         "\ufeff" + buf.getvalue(),
         media_type="text/csv; charset=utf-8",
-        headers={"Content-Disposition": "attachment; filename=marine-vms-events.csv"},
+        headers={"Content-Disposition": "attachment; filename=shipweb-events.csv"},
     )
 
 
