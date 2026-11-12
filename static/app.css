@@ -119,7 +119,7 @@ a { color: var(--amber); }
   flex: 1 1 auto;
   order: 0;
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-columns: 1fr 1fr 1fr 1fr;
   grid-template-rows: 1fr 1fr;
   gap: 0.65rem;
   align-content: stretch;
@@ -189,7 +189,7 @@ body:not(.local) #builders { display: none; }
   max-width: 100%;
   min-width: 0;
   max-height: none;
-  object-fit: contain;
+  object-fit: cover;
   background: #000;
   display: block;
 }
@@ -383,7 +383,7 @@ dialog::backdrop { background: rgba(4, 8, 12, 0.78); }
   .split { grid-template-columns: 1fr; }
   #watch.layout { overflow: auto; }
   .stage-row { flex-direction: column; flex: none; }
-  .wall { order: -1; overflow: visible; grid-template-columns: 1fr 1fr 1fr; grid-template-rows: none; }
+  .wall { order: -1; overflow: visible; grid-template-columns: 1fr 1fr 1fr 1fr; grid-template-rows: none; }
   .card { height: auto; }
   .stage { flex: none; aspect-ratio: 16 / 9; }
   .side { order: 0; flex: none; width: auto; max-width: none; }

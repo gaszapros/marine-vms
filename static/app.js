@@ -48,6 +48,18 @@ const PUBLIC_CAMERAS = [
     location: "Хендерсон, Луизиана",
     src: "https://ITSStreamingBR2.dotd.la.gov/public/shr-cam-007.streams/playlist.m3u8",
   },
+  {
+    id: "i10-scott",
+    name: "Шоссе I-10, Скотт",
+    location: "Скотт, Луизиана",
+    src: "https://ITSStreamingBR2.dotd.la.gov/public/shr-cam-011.streams/playlist.m3u8",
+  },
+  {
+    id: "i10-lafayette",
+    name: "Шоссе I-10, Лафейет",
+    location: "Лафейет, Луизиана",
+    src: "https://ITSStreamingBR2.dotd.la.gov/public/shr-cam-013.streams/playlist.m3u8",
+  },
 ];
 
 function url(path) {
