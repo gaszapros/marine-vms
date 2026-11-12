@@ -4,10 +4,16 @@ window.HeavyWatch = (() => {
   const CONFIDENCE = 0.4;
   const LABELS = { 5: true, 7: true };
   const anchors = buildAnchors();
-  const scratch = document.createElement("canvas");
-  scratch.width = INPUT;
-  scratch.height = INPUT;
-  const pixels = scratch.getContext("2d", { willReadFrequently: true });
+  let pixels = null;
+
+  function sheet() {
+    if (pixels) return pixels;
+    const scratch = document.createElement("canvas");
+    scratch.width = INPUT;
+    scratch.height = INPUT;
+    pixels = scratch.getContext("2d", { willReadFrequently: true });
+    return pixels;
+  }
 
   let generation = 0;
   let worker = null;
@@ -67,10 +73,17 @@ window.HeavyWatch = (() => {
     const ratio = Math.min(INPUT / height, INPUT / width);
     const resizedW = Math.max(1, Math.round(width * ratio));
     const resizedH = Math.max(1, Math.round(height * ratio));
-    pixels.fillStyle = "rgb(114,114,114)";
-    pixels.fillRect(0, 0, INPUT, INPUT);
-    pixels.drawImage(video, 0, 0, resizedW, resizedH);
-    const rgba = pixels.getImageData(0, 0, INPUT, INPUT).data;
+    const frame = sheet();
+    frame.fillStyle = "rgb(114,114,114)";
+    frame.fillRect(0, 0, INPUT, INPUT);
+    frame.drawImage(video, 0, 0, resizedW, resizedH);
+    let rgba;
+    try {
+      rgba = frame.getImageData(0, 0, INPUT, INPUT).data;
+    } catch (error) {
+      pixels = null;
+      throw error;
+    }
     const input = new Float32Array(3 * INPUT * INPUT);
     const plane = INPUT * INPUT;
     for (let i = 0; i < plane; i += 1) {
@@ -180,7 +193,18 @@ window.HeavyWatch = (() => {
     let index = 0;
     const step = async () => {
       if (token !== generation) return;
-      const entry = entries[index % entries.length];
+      const live = entries.filter((entry) => !entry.live || entry.live());
+      for (const entry of entries) {
+        if (live.includes(entry) || !entry.shown) continue;
+        entry.seen = 0;
+        entry.shown = 0;
+        entry.onMarks(0);
+      }
+      if (!live.length) {
+        if (token === generation) setTimeout(step, 400);
+        return;
+      }
+      const entry = live[index % live.length];
       index += 1;
       if (entry.video.readyState >= 2) {
         try {

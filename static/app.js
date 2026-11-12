@@ -651,11 +651,15 @@ function renderConditions() {
   }
   const list = document.querySelector("#conditionList");
   list.innerHTML = rules.length
-    ? rules.map((rule) => `<li class="${rule.id === selectedConditionId ? "on" : ""}">
+    ? rules.map((rule) => {
+      const cam = cameras.find((item) => item.id === rule.cameraId);
+      const cameraName = cam ? cam.name : "камера недоступна";
+      return `<li class="${rule.id === selectedConditionId ? "on" : ""}">
         <label class="check"><input data-toggle-condition="${escapeHtml(rule.id)}" type="checkbox" ${rule.enabled ? "checked" : ""}/></label>
-        <button type="button" class="pick" data-pick-condition="${escapeHtml(rule.id)}">${escapeHtml(rule.name)}</button>
+        <button type="button" class="pick" data-pick-condition="${escapeHtml(rule.id)}"><span>${escapeHtml(rule.name)}</span><small>${escapeHtml(cameraName)}</small></button>
         <span class="tag">${rule.record ? "запись" : "показать"}</span>
-      </li>`).join("")
+      </li>`;
+    }).join("")
     : `<li><span class="hint">Условий пока нет.</span></li>`;
   const form = document.querySelector("#conditionForm");
   const rule = rules.find((item) => item.id === selectedConditionId);
@@ -675,6 +679,36 @@ function renderConditions() {
 
 function renderPlainRules() {
   renderConditions();
+}
+
+function releaseIdleCameras() {
+  const rules = watchRules();
+  for (const card of wall.querySelectorAll(".card[data-camera]")) {
+    const enabled = rules.some((rule) => rule.cameraId === card.dataset.camera && rule.enabled && rule.when === "heavy");
+    if (!enabled) card.classList.remove("alert");
+  }
+}
+
+function persistConditionForm() {
+  const form = document.querySelector("#conditionForm");
+  const id = form.dataset.id;
+  if (!id) return;
+  const next = {
+    id,
+    name: form.name.value.trim() || "Нарушение",
+    cameraId: form.cameraId.value,
+    when: "heavy",
+    enabled: form.enabled.checked,
+    record: form.record.checked,
+  };
+  const rules = watchRules();
+  const index = rules.findIndex((rule) => rule.id === id);
+  if (index >= 0) rules[index] = next;
+  else rules.push(next);
+  saveRules(rules);
+  selectedConditionId = id;
+  renderConditions();
+  releaseIdleCameras();
 }
 
 function emptyQueue(text) {
@@ -1027,6 +1061,7 @@ function showPublicCameras() {
       <header><div><strong></strong><small class="place"></small></div><span class="signal"></span></header>`;
     card.dataset.kind = "hls";
     card.dataset.stream = cam.src;
+    card.dataset.camera = cam.id;
     markCameraCard(card, cam.name);
     const place = card.querySelector(".place");
     if (place) place.textContent = cam.location || "";
@@ -1035,6 +1070,9 @@ function showPublicCameras() {
     attachStream(video, cam.src);
     watches.push({
       video,
+      live() {
+        return watchRules().some((rule) => rule.cameraId === cam.id && rule.enabled && rule.when === "heavy");
+      },
       onMarks(count) {
         const matched = watchRules().filter((rule) => rule.cameraId === cam.id && rule.enabled && rule.when === "heavy" && count > 0);
         card.classList.toggle("alert", matched.length > 0);
@@ -1095,27 +1133,16 @@ document.querySelector("#conditionList").addEventListener("change", (event) => {
   ));
   saveRules(rules);
   renderConditions();
+  releaseIdleCameras();
+});
+
+document.querySelector("#conditionForm").addEventListener("change", () => {
+  persistConditionForm();
 });
 
 document.querySelector("#conditionForm").addEventListener("submit", (event) => {
   event.preventDefault();
-  const form = event.target;
-  const id = form.dataset.id;
-  const next = {
-    id,
-    name: form.name.value.trim() || "Нарушение",
-    cameraId: form.cameraId.value,
-    when: "heavy",
-    enabled: form.enabled.checked,
-    record: form.record.checked,
-  };
-  const rules = watchRules();
-  const index = rules.findIndex((rule) => rule.id === id);
-  if (index >= 0) rules[index] = next;
-  else rules.push(next);
-  saveRules(rules);
-  selectedConditionId = id;
-  renderConditions();
+  persistConditionForm();
 });
 
 document.querySelector("#newCondition").addEventListener("click", () => {
@@ -1134,6 +1161,7 @@ document.querySelector("#dropCondition").addEventListener("click", () => {
   saveRules(rules);
   selectedConditionId = rules[0] ? rules[0].id : null;
   renderConditions();
+  releaseIdleCameras();
 });
 
 document.querySelector("#player").addEventListener("close", () => {

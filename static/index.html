@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Marine Online</title>
-  <link rel="stylesheet" href="app.css?v=14" />
+  <link rel="stylesheet" href="app.css?v=15" />
 </head>
 <body>
   <header class="top">
@@ -34,7 +34,7 @@
       <ul id="extraList" class="plain"></ul>
       <div id="ruleBlock">
         <h2>Условия записи</h2>
-        <p class="hint">Выберите условие. Пока оно выключено, камера молчит. «Показать» только подсвечивает кадр. «Запись» снимает короткий ролик, пока в кадре автобус или грузовик.</p>
+        <p class="hint">У каждой строки своя камера. Снимите галочку — эта камера молчит, остальные работают как были. Камера и «запись» применяются сразу.</p>
         <ul id="conditionList" class="plain"></ul>
         <form id="conditionForm" class="stack">
           <label>Название <input name="name" required /></label>
@@ -170,8 +170,8 @@
       <p id="playerMeta"></p>
     </form>
   </dialog>
-  <script src="heavy.js?v=22"></script>
+  <script src="heavy.js?v=24"></script>
   <script src="hls.min.js?v=5"></script>
-  <script src="app.js?v=16"></script>
+  <script src="app.js?v=17"></script>
 </body>
 </html>

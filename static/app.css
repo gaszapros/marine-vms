@@ -306,11 +306,21 @@ body:not(.local) #builders { display: none; }
 .plain button.pick {
   flex: 1;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.05rem;
   text-align: left;
   background: transparent;
   border-color: transparent;
   color: var(--ink);
   font-weight: 650;
+  line-height: 1.25;
+}
+.plain button.pick small {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 450;
 }
 .tag { flex: none; color: var(--sea); font-size: 0.72rem; letter-spacing: 0.03em; }
 #player video, #player img { width: 100%; background: #000; border-radius: 8px; display: block; }
