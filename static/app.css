@@ -96,7 +96,7 @@ a { color: var(--amber); }
 .arm.on { background: var(--sea); color: #ffffff; border-color: transparent; }
 .arm.off { background: #f8e8e8; color: #8a3030; }
 
-/* Плашка — отдельная колонка и не рисуется поверх камер. Экраны равные и не шире своей ячейки. */
+/* Плашка — отдельная колонка и не рисуется поверх камер. Карточка не шире своей ячейки. */
 .layout {
   display: flex;
   flex-direction: column;
@@ -117,8 +117,8 @@ a { color: var(--amber); }
 .wall {
   flex: 1 1 auto;
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 380px), 1fr));
-  gap: 0.65rem;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
+  gap: 0.8rem;
   align-content: start;
   align-items: start;
   min-width: 0;
@@ -127,13 +127,11 @@ a { color: var(--amber); }
   overflow: auto;
 }
 .card {
-  position: relative;
-  background: #000;
+  background: var(--panel);
   border: 1px solid var(--line);
   border-radius: 12px;
   overflow: hidden;
   align-self: start;
-  width: 100%;
   height: auto;
   min-width: 0;
   max-width: 100%;
@@ -144,21 +142,10 @@ a { color: var(--amber); }
 .card.rec { border-color: var(--rec); box-shadow: inset 0 0 0 1px var(--rec); }
 .card.alert {
   border-color: #d92d2d;
-  background: #000;
+  background: #fff5f5;
   box-shadow: inset 0 0 0 3px #d92d2d;
 }
-.card.alert::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: 2;
-  border-radius: inherit;
-  box-shadow: inset 0 0 0 3px #d92d2d;
-  pointer-events: none;
-}
-.card.alert header {
-  background: linear-gradient(to top, rgba(110, 16, 16, 0.92), rgba(110, 16, 16, 0.2) 55%, transparent);
-}
+.card.alert header { background: rgba(217, 45, 45, 0.1); }
 .card header .signal {
   flex: none;
   color: #a32020;
@@ -179,28 +166,23 @@ body:not(.local) #localNote,
 body:not(.local) #tech,
 body:not(.local) #journal,
 body:not(.local) #builders { display: none; }
-.stage {
-  position: relative;
-  width: 100%;
-  max-width: 100%;
-  min-width: 0;
-  aspect-ratio: 16 / 9;
-  background: #000;
-}
 .card img, .card video, .stage canvas {
-  position: absolute;
-  inset: 0;
   width: 100%;
-  height: 100%;
+  height: auto;
   max-width: 100%;
   min-width: 0;
   max-height: none;
-  aspect-ratio: auto;
-  object-fit: contain;
+  aspect-ratio: 16/9;
+  object-fit: cover;
   background: #000;
   display: block;
 }
+.stage { position: relative; min-width: 0; max-width: 100%; }
 .stage canvas {
+  position: absolute;
+  inset: 0;
+  height: 100%;
+  aspect-ratio: auto;
   object-fit: fill;
   background: transparent;
   pointer-events: none;
@@ -213,25 +195,8 @@ body:not(.local) #builders { display: none; }
   padding: 0.6rem 0.8rem 0.65rem;
   font-size: 0.9rem;
 }
-.card header {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 1;
-  padding: 1.7rem 0.75rem 0.5rem;
-  background: linear-gradient(to top, rgba(4, 20, 32, 0.9), rgba(4, 20, 32, 0.28) 58%, transparent);
-  color: #f7fbfc;
-  pointer-events: none;
-}
-.card header .signal { color: #ffc9c9; }
 .card header strong { display: block; font-weight: 650; letter-spacing: 0.01em; }
-.card header .place {
-  display: block;
-  margin-top: 0.12rem;
-  color: rgba(247, 251, 252, 0.78);
-  font-size: 0.75rem;
-}
+.card header .place { display: block; margin-top: 0.12rem; color: var(--muted); font-size: 0.75rem; }
 .card header .place:empty { display: none; }
 .meta { color: var(--muted); padding-top: 0; }
 .dot { color: var(--rec); font-weight: 700; }
@@ -264,7 +229,7 @@ body:not(.local) #builders { display: none; }
 .dock h2:not(:first-child) { margin-top: 1.15rem; }
 .queue-bar {
   flex: 0 0 auto;
-  height: clamp(96px, 14vh, 148px);
+  height: clamp(132px, 26vh, 220px);
   display: flex;
   flex-direction: column;
   min-width: 0;
@@ -407,9 +372,6 @@ dialog::backdrop { background: rgba(4, 8, 12, 0.78); }
   .brand { min-width: 0; max-width: min(220px, 70vw); }
   .brand img { height: 48px; }
   .clock { margin-left: 0; }
-}
-@media (max-width: 700px) {
-  .wall { grid-template-columns: 1fr; }
 }
 @media (max-width: 480px) {
   .brand img { height: 40px; }

@@ -52,7 +52,7 @@ function ensureCard(cam) {
   card = document.createElement("article");
   card.className = "card";
   card.innerHTML = `
-    <div class="stage"><img alt="" /></div>
+    <img alt="" />
     <header><div><strong></strong><small class="place"></small></div></header>`;
   card.dataset.kind = "mjpeg";
   card.dataset.stream = url(`/api/cameras/${cam.id}/live`);
