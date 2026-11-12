@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Marine Online</title>
-  <link rel="stylesheet" href="app.css?v=13" />
+  <link rel="stylesheet" href="app.css?v=14" />
 </head>
 <body>
   <header class="top">
@@ -33,9 +33,25 @@
       </form>
       <ul id="extraList" class="plain"></ul>
       <div id="ruleBlock">
-        <h2>Правила</h2>
-        <p class="hint">«Показать» только подсвечивает камеру. «Позвать» один раз зовёт и оставляет кадр внизу.</p>
-        <div id="ruleCards" class="stack"></div>
+        <h2>Условия записи</h2>
+        <p class="hint">Выберите условие. Пока оно выключено, камера молчит. «Показать» только подсвечивает кадр. «Запись» снимает короткий ролик, пока в кадре автобус или грузовик.</p>
+        <ul id="conditionList" class="plain"></ul>
+        <form id="conditionForm" class="stack">
+          <label>Название <input name="name" required /></label>
+          <label>Камера <select name="cameraId"></select></label>
+          <label>Когда
+            <select name="when">
+              <option value="heavy">в кадре автобус или грузовик</option>
+            </select>
+          </label>
+          <label class="check"><input name="enabled" type="checkbox" /> условие включено</label>
+          <label class="check"><input name="record" type="checkbox" /> создавать запись видео</label>
+          <button type="submit">Сохранить условие</button>
+        </form>
+        <div class="row">
+          <button type="button" id="newCondition">Новое</button>
+          <button type="button" id="dropCondition">Удалить</button>
+        </div>
       </div>
     </aside>
     </div>
@@ -150,11 +166,12 @@
         <button value="cancel">Закрыть</button>
       </header>
       <img id="playerImg" alt="Кадр нарушения" />
+      <video id="playerVideo" hidden controls playsinline></video>
       <p id="playerMeta"></p>
     </form>
   </dialog>
   <script src="heavy.js?v=22"></script>
   <script src="hls.min.js?v=5"></script>
-  <script src="app.js?v=13"></script>
+  <script src="app.js?v=16"></script>
 </body>
 </html>

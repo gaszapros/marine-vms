@@ -506,22 +506,64 @@ function allPublicCameras() {
   return PUBLIC_CAMERAS.concat(extraCameras());
 }
 
-function defaultRules() {
-  return allPublicCameras().map((cam) => ({
-    cameraId: cam.id,
+function blankCondition(cameraId, id) {
+  return {
+    id: id || `cond-${Date.now()}`,
     name: "Не легковой автомобиль",
+    cameraId,
+    when: "heavy",
     enabled: true,
-    mode: "show",
-  }));
+    record: false,
+  };
+}
+
+const SEEDED_KEY = "marine-online-seeded";
+
+function seededCameras() {
+  const items = loadJson(SEEDED_KEY, []);
+  return new Set(Array.isArray(items) ? items : []);
+}
+
+function rememberSeed(ids) {
+  localStorage.setItem(SEEDED_KEY, JSON.stringify([...ids]));
 }
 
 function watchRules() {
   const stored = loadJson(RULE_KEY, null);
-  const known = Array.isArray(stored) ? stored : [];
-  return allPublicCameras().map((cam) => {
-    const found = known.find((rule) => rule.cameraId === cam.id);
-    return found || { cameraId: cam.id, name: "Не легковой автомобиль", enabled: true, mode: "show" };
-  });
+  const seeded = seededCameras();
+  if (!Array.isArray(stored) || !stored.length) {
+    const rules = allPublicCameras().map((cam) => blankCondition(cam.id, `cond-${cam.id}`));
+    for (const cam of allPublicCameras()) seeded.add(cam.id);
+    rememberSeed(seeded);
+    return rules;
+  }
+  let changed = false;
+  const rules = stored.map((rule) => {
+    if (rule && rule.id && rule.when) return rule;
+    changed = true;
+    return {
+      id: `cond-${rule.cameraId || "x"}`,
+      name: rule.name || "Не легковой автомобиль",
+      cameraId: rule.cameraId,
+      when: "heavy",
+      enabled: rule.enabled !== false,
+      record: rule.mode === "call",
+    };
+  }).filter((rule) => rule && rule.cameraId);
+  for (const cam of allPublicCameras()) {
+    if (seeded.has(cam.id)) continue;
+    if (!rules.some((rule) => rule.cameraId === cam.id)) {
+      rules.push(blankCondition(cam.id, `cond-${cam.id}`));
+      changed = true;
+    }
+    seeded.add(cam.id);
+    changed = true;
+  }
+  if (changed) {
+    rememberSeed(seeded);
+    saveRules(rules);
+  }
+  return rules;
 }
 
 function saveRules(items) {
@@ -599,30 +641,40 @@ function renderExtraList() {
     : "";
 }
 
-function renderPlainRules() {
-  const box = document.querySelector("#ruleCards");
-  box.innerHTML = watchRules().map((rule) => {
-    const cam = allPublicCameras().find((item) => item.id === rule.cameraId);
-    const title = cam ? cam.name : rule.cameraId;
-    return `<label class="stack">
-      <span>${escapeHtml(title)}</span>
-      <input data-rule-name="${escapeHtml(rule.cameraId)}" value="${escapeHtml(rule.name)}" />
-      <label class="check"><input data-rule-on="${escapeHtml(rule.cameraId)}" type="checkbox" ${rule.enabled ? "checked" : ""}/> правило включено</label>
-      <select data-rule-mode="${escapeHtml(rule.cameraId)}">
-        <option value="show" ${rule.mode === "show" ? "selected" : ""}>только показать</option>
-        <option value="call" ${rule.mode === "call" ? "selected" : ""}>позвать и сохранить кадр</option>
-      </select>
-    </label>`;
-  }).join("");
+let selectedConditionId = null;
+
+function renderConditions() {
+  const rules = watchRules();
+  const cameras = allPublicCameras();
+  if (!rules.some((rule) => rule.id === selectedConditionId)) {
+    selectedConditionId = rules[0] ? rules[0].id : null;
+  }
+  const list = document.querySelector("#conditionList");
+  list.innerHTML = rules.length
+    ? rules.map((rule) => `<li class="${rule.id === selectedConditionId ? "on" : ""}">
+        <label class="check"><input data-toggle-condition="${escapeHtml(rule.id)}" type="checkbox" ${rule.enabled ? "checked" : ""}/></label>
+        <button type="button" class="pick" data-pick-condition="${escapeHtml(rule.id)}">${escapeHtml(rule.name)}</button>
+        <span class="tag">${rule.record ? "запись" : "показать"}</span>
+      </li>`).join("")
+    : `<li><span class="hint">Условий пока нет.</span></li>`;
+  const form = document.querySelector("#conditionForm");
+  const rule = rules.find((item) => item.id === selectedConditionId);
+  form.hidden = !rule;
+  document.querySelector("#dropCondition").disabled = !rule;
+  if (!rule) return;
+  form.dataset.id = rule.id;
+  form.name.value = rule.name;
+  form.cameraId.innerHTML = cameras
+    .map((cam) => `<option value="${escapeHtml(cam.id)}">${escapeHtml(cam.name)}</option>`)
+    .join("");
+  if (cameras.some((cam) => cam.id === rule.cameraId)) form.cameraId.value = rule.cameraId;
+  form.when.value = "heavy";
+  form.enabled.checked = Boolean(rule.enabled);
+  form.record.checked = Boolean(rule.record);
 }
 
-function readPlainRules() {
-  return allPublicCameras().map((cam) => ({
-    cameraId: cam.id,
-    name: document.querySelector(`[data-rule-name="${cam.id}"]`).value.trim() || "Нарушение",
-    enabled: document.querySelector(`[data-rule-on="${cam.id}"]`).checked,
-    mode: document.querySelector(`[data-rule-mode="${cam.id}"]`).value,
-  }));
+function renderPlainRules() {
+  renderConditions();
 }
 
 function emptyQueue(text) {
@@ -632,7 +684,7 @@ function emptyQueue(text) {
 function renderPublicQueue() {
   const items = watchCases();
   if (!items.length) {
-    emptyQueue("Тихо. Камера подсветится, когда правило что-то найдёт. Список здесь появится, если в настройке выбран режим «позвать».");
+    emptyQueue("Тихо. Камера подсветится, когда включённое условие что-то найдёт. Ролик появится здесь, если у условия включена запись.");
     return;
   }
   queueEl.innerHTML = items.map((item) => {
@@ -644,7 +696,7 @@ function renderPublicQueue() {
       <div>
         <strong>${item.ruleName}</strong>
         <small>${item.cameraName} · ${clock(item.at)}</small>
-        <small>${label}</small>
+        <small>${item.clip ? "ролик" : ""}${label ? ` ${label}` : ""}</small>
       </div>
       <span class="actions">
         <button type="button" data-open-case="${item.id}">Открыть</button>
@@ -714,6 +766,124 @@ function noteCall(cam, rule, active, video) {
   beep();
 }
 
+const recorders = new Map();
+const heldRecords = new Set();
+let clipsOpen = true;
+
+function clipDb() {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open("marine-online", 1);
+    request.onupgradeneeded = () => request.result.createObjectStore("clips");
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+function saveClip(id, blob) {
+  return clipDb().then((db) => new Promise((resolve, reject) => {
+    const tx = db.transaction("clips", "readwrite");
+    tx.objectStore("clips").put(blob, id);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  }));
+}
+
+function loadClip(id) {
+  return clipDb().then((db) => new Promise((resolve, reject) => {
+    const tx = db.transaction("clips", "readonly");
+    const request = tx.objectStore("clips").get(id);
+    request.onsuccess = () => resolve(request.result || null);
+    request.onerror = () => reject(request.error);
+  })).catch(() => null);
+}
+
+function clearClips() {
+  return clipDb().then((db) => new Promise((resolve) => {
+    const tx = db.transaction("clips", "readwrite");
+    tx.objectStore("clips").clear();
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => resolve();
+  })).catch(() => {});
+}
+
+function stopRecord(cameraId) {
+  const job = recorders.get(cameraId);
+  if (!job) return;
+  recorders.delete(cameraId);
+  clearTimeout(job.timer);
+  openCalls.delete(cameraId);
+  if (job.recorder && job.recorder.state === "recording") job.recorder.stop();
+}
+
+function startRecord(cam, rule, video) {
+  const item = {
+    id: `${cam.id}-${Date.now()}`,
+    cameraId: cam.id,
+    cameraName: cam.name,
+    ruleName: rule.name,
+    at: new Date().toISOString(),
+    frame: snapshot(video),
+    status: "open",
+    acked: false,
+    clip: false,
+  };
+  const finishFrame = () => {
+    openCalls.set(cam.id, item);
+    saveCases([item, ...watchCases()]);
+    renderPublicQueue();
+    beep();
+  };
+  let stream = null;
+  try {
+    stream = video.captureStream ? video.captureStream() : null;
+  } catch {
+    stream = null;
+  }
+  if (!stream || !window.MediaRecorder || video.readyState < 2) {
+    finishFrame();
+    return;
+  }
+  const mime = MediaRecorder.isTypeSupported("video/webm;codecs=vp8") ? "video/webm;codecs=vp8" : "video/webm";
+  let recorder;
+  try {
+    recorder = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 700000 });
+  } catch {
+    finishFrame();
+    return;
+  }
+  const chunks = [];
+  recorder.ondataavailable = (event) => {
+    if (event.data && event.data.size) chunks.push(event.data);
+  };
+  recorder.onstop = () => {
+    const blob = new Blob(chunks, { type: mime });
+    if (!clipsOpen || !blob.size) return;
+    item.clip = true;
+    saveClip(item.id, blob).then(() => patchCase(item.id, { clip: true })).catch(() => {});
+  };
+  try {
+    recorder.start();
+  } catch {
+    finishFrame();
+    return;
+  }
+  const timer = setTimeout(() => stopRecord(cam.id), 20000);
+  recorders.set(cam.id, { recorder, timer });
+  finishFrame();
+}
+
+function noteRecord(cam, rule, active, video) {
+  if (!active || !rule) {
+    stopRecord(cam.id);
+    heldRecords.delete(cam.id);
+    return;
+  }
+  if (heldRecords.has(cam.id)) return;
+  if (video.readyState < 2) return;
+  heldRecords.add(cam.id);
+  startRecord(cam, rule, video);
+}
+
 function patchCase(id, change) {
   const items = watchCases().map((item) => (item.id === id ? { ...item, ...change } : item));
   saveCases(items);
@@ -750,6 +920,8 @@ async function tick() {
 }
 
 function stopPublicPlayers() {
+  heldRecords.clear();
+  for (const id of [...recorders.keys()]) stopRecord(id);
   if (window.HeavyWatch) HeavyWatch.stop();
   for (const player of publicPlayers) player.destroy();
   publicPlayers.length = 0;
@@ -864,11 +1036,10 @@ function showPublicCameras() {
     watches.push({
       video,
       onMarks(count) {
-        const rule = watchRules().find((item) => item.cameraId === cam.id) || { enabled: true, mode: "show", name: "Нарушение" };
-        const active = count > 0 && rule.enabled;
-        card.classList.toggle("alert", active);
-        if (rule.mode === "call") noteCall(cam, rule, active, video);
-        else openCalls.delete(cam.id);
+        const matched = watchRules().filter((rule) => rule.cameraId === cam.id && rule.enabled && rule.when === "heavy" && count > 0);
+        card.classList.toggle("alert", matched.length > 0);
+        const recording = matched.find((rule) => rule.record);
+        noteRecord(cam, recording || null, Boolean(recording), video);
       },
       onError() {
         const slot = card.querySelector(".signal");
@@ -909,8 +1080,67 @@ cameraView.addEventListener("click", (event) => {
 document.querySelector("#showWatch").addEventListener("click", () => showView("watch"));
 document.querySelector("#showSetup").addEventListener("click", () => showView("setup"));
 
-document.querySelector("#ruleCards").addEventListener("change", () => {
-  saveRules(readPlainRules());
+document.querySelector("#conditionList").addEventListener("click", (event) => {
+  const pick = event.target.closest("[data-pick-condition]");
+  if (!pick) return;
+  selectedConditionId = pick.dataset.pickCondition;
+  renderConditions();
+});
+
+document.querySelector("#conditionList").addEventListener("change", (event) => {
+  const target = event.target;
+  if (!(target instanceof HTMLInputElement) || !target.dataset.toggleCondition) return;
+  const rules = watchRules().map((rule) => (
+    rule.id === target.dataset.toggleCondition ? { ...rule, enabled: target.checked } : rule
+  ));
+  saveRules(rules);
+  renderConditions();
+});
+
+document.querySelector("#conditionForm").addEventListener("submit", (event) => {
+  event.preventDefault();
+  const form = event.target;
+  const id = form.dataset.id;
+  const next = {
+    id,
+    name: form.name.value.trim() || "Нарушение",
+    cameraId: form.cameraId.value,
+    when: "heavy",
+    enabled: form.enabled.checked,
+    record: form.record.checked,
+  };
+  const rules = watchRules();
+  const index = rules.findIndex((rule) => rule.id === id);
+  if (index >= 0) rules[index] = next;
+  else rules.push(next);
+  saveRules(rules);
+  selectedConditionId = id;
+  renderConditions();
+});
+
+document.querySelector("#newCondition").addEventListener("click", () => {
+  const cam = allPublicCameras()[0];
+  if (!cam) return;
+  const rule = blankCondition(cam.id);
+  saveRules(watchRules().concat(rule));
+  selectedConditionId = rule.id;
+  renderConditions();
+  document.querySelector("#conditionForm").name.focus();
+});
+
+document.querySelector("#dropCondition").addEventListener("click", () => {
+  if (!selectedConditionId) return;
+  const rules = watchRules().filter((rule) => rule.id !== selectedConditionId);
+  saveRules(rules);
+  selectedConditionId = rules[0] ? rules[0].id : null;
+  renderConditions();
+});
+
+document.querySelector("#player").addEventListener("close", () => {
+  const clip = document.querySelector("#playerVideo");
+  clip.pause();
+  clip.removeAttribute("src");
+  clip.hidden = true;
 });
 
 document.querySelector("#addCamera").addEventListener("submit", async (event) => {
@@ -946,7 +1176,12 @@ document.querySelector("#addCamera").addEventListener("submit", async (event) =>
   }
   const id = `extra-${Date.now()}`;
   saveExtras(extraCameras().concat([{ id, name, location: (data.location || "").trim(), src }]));
-  saveRules(watchRules());
+  const rules = watchRules();
+  if (!rules.some((rule) => rule.cameraId === id)) rules.push(blankCondition(id));
+  const seeded = seededCameras();
+  seeded.add(id);
+  rememberSeed(seeded);
+  saveRules(rules);
   form.reset();
   showPublicCameras();
 });
@@ -958,13 +1193,19 @@ document.querySelector("#extraList").addEventListener("click", (event) => {
   saveExtras(extraCameras().filter((cam) => cam.id !== id));
   saveRules(watchRules().filter((rule) => rule.cameraId !== id));
   openCalls.delete(id);
+  stopRecord(id);
   showPublicCameras();
 });
 
 document.querySelector("#endWatch").addEventListener("click", () => {
   if (publicMode) {
+    clipsOpen = false;
+    heldRecords.clear();
+    for (const id of [...recorders.keys()]) stopRecord(id);
+    clipsOpen = true;
     saveCases([]);
     openCalls.clear();
+    clearClips();
     renderPublicQueue();
     return;
   }
@@ -981,10 +1222,24 @@ queueEl.addEventListener("click", (event) => {
   if (target.dataset.openCase) {
     const item = watchCases().find((row) => row.id === target.dataset.openCase);
     if (!item) return;
+    const clip = document.querySelector("#playerVideo");
+    clip.pause();
+    clip.removeAttribute("src");
+    clip.hidden = true;
     document.querySelector("#playerTitle").textContent = item.ruleName;
     document.querySelector("#playerMeta").textContent = `${item.cameraName} · ${clock(item.at)}`;
+    document.querySelector("#playerImg").hidden = false;
     document.querySelector("#playerImg").src = item.frame || "";
     document.querySelector("#player").showModal();
+    if (item.clip) {
+      loadClip(item.id).then((blob) => {
+        if (!blob) return;
+        clip.src = URL.createObjectURL(blob);
+        clip.hidden = false;
+        document.querySelector("#playerImg").hidden = true;
+        clip.play().catch(() => {});
+      });
+    }
   }
   if (target.dataset.ack) patchCase(caseId, { acked: true });
   if (target.dataset.confirm) patchCase(caseId, { status: "confirmed", acked: true });

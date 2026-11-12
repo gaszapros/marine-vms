@@ -298,10 +298,23 @@ body:not(.local) #builders { display: none; }
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 0.5rem;
-  padding: 0.45rem 0;
+  gap: 0.45rem;
+  padding: 0.4rem 0;
   border-bottom: 1px solid var(--line);
 }
+.plain li.on { background: #e7f3f6; margin: 0 -0.35rem; padding-left: 0.35rem; padding-right: 0.35rem; border-radius: 8px; }
+.plain button.pick {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  background: transparent;
+  border-color: transparent;
+  color: var(--ink);
+  font-weight: 650;
+}
+.tag { flex: none; color: var(--sea); font-size: 0.72rem; letter-spacing: 0.03em; }
+#player video, #player img { width: 100%; background: #000; border-radius: 8px; display: block; }
+.dock .row button { flex: 1; }
 dialog {
   border: 1px solid var(--line);
   background: #ffffff;
