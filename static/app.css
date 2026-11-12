@@ -114,26 +114,33 @@ a { color: var(--amber); }
   min-width: 0;
   min-height: 0;
 }
+.dock { order: -1; }
 .wall {
   flex: 1 1 auto;
+  order: 0;
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
-  gap: 0.8rem;
-  align-content: start;
-  align-items: start;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  gap: 0.65rem;
+  align-content: stretch;
+  align-items: stretch;
   min-width: 0;
   min-height: 0;
   max-width: 100%;
-  overflow: auto;
+  overflow: hidden;
 }
 .card {
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: 12px;
   overflow: hidden;
-  align-self: start;
-  height: auto;
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
   min-width: 0;
+  min-height: 0;
   max-width: 100%;
   cursor: pointer;
 }
@@ -166,23 +173,36 @@ body:not(.local) #localNote,
 body:not(.local) #tech,
 body:not(.local) #journal,
 body:not(.local) #builders { display: none; }
-.card img, .card video, .stage canvas {
+.stage {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  max-width: 100%;
+  background: #000;
+}
+.stage video, .stage img, .stage canvas {
+  position: absolute;
+  inset: 0;
   width: 100%;
-  height: auto;
+  height: 100%;
   max-width: 100%;
   min-width: 0;
   max-height: none;
+  object-fit: contain;
+  background: #000;
+  display: block;
+}
+.card > img {
+  width: 100%;
+  height: auto;
+  max-width: 100%;
   aspect-ratio: 16/9;
   object-fit: cover;
   background: #000;
   display: block;
 }
-.stage { position: relative; min-width: 0; max-width: 100%; }
 .stage canvas {
-  position: absolute;
-  inset: 0;
-  height: 100%;
-  aspect-ratio: auto;
   object-fit: fill;
   background: transparent;
   pointer-events: none;
@@ -192,7 +212,8 @@ body:not(.local) #builders { display: none; }
   justify-content: space-between;
   align-items: center;
   gap: 0.6rem;
-  padding: 0.6rem 0.8rem 0.65rem;
+  flex: none;
+  padding: 0.45rem 0.7rem 0.5rem;
   font-size: 0.9rem;
 }
 .card header strong { display: block; font-weight: 650; letter-spacing: 0.01em; }
@@ -208,9 +229,9 @@ body:not(.local) #builders { display: none; }
   padding: 0.95rem;
 }
 .side {
-  flex: 0 0 300px;
-  width: 300px;
-  max-width: 34%;
+  flex: 0 0 380px;
+  width: 380px;
+  max-width: 42%;
   display: flex;
   flex-direction: column;
   min-width: 0;
@@ -362,8 +383,10 @@ dialog::backdrop { background: rgba(4, 8, 12, 0.78); }
   .split { grid-template-columns: 1fr; }
   #watch.layout { overflow: auto; }
   .stage-row { flex-direction: column; flex: none; }
-  .wall { overflow: visible; grid-template-columns: 1fr 1fr; }
-  .side { flex: none; width: auto; max-width: none; }
+  .wall { order: -1; overflow: visible; grid-template-columns: 1fr 1fr; grid-template-rows: none; }
+  .card { height: auto; }
+  .stage { flex: none; aspect-ratio: 16 / 9; }
+  .side { order: 0; flex: none; width: auto; max-width: none; }
   .queue-bar, #queue { overflow: visible; }
   .queue-bar { height: auto; }
   #queue.events { display: grid; }

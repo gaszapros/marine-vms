@@ -30,6 +30,12 @@ const PUBLIC_CAMERAS = [
     location: "Фэрфакс, Виргиния",
     src: "https://media-sfs8.vdotcameras.com:443/rtplive/NROCCTVI66E00610/playlist.m3u8",
   },
+  {
+    id: "i10",
+    name: "Шоссе I-10",
+    location: "Атчафалайя, Луизиана",
+    src: "https://ITSStreamingBR2.dotd.la.gov/public/shr-cam-001.streams/playlist.m3u8",
+  },
 ];
 
 function url(path) {
