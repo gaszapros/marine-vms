@@ -189,7 +189,7 @@ body:not(.local) #builders { display: none; }
   max-width: 100%;
   min-width: 0;
   max-height: none;
-  object-fit: contain;
+  object-fit: fill;
   background: #000;
   display: block;
 }
