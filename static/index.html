@@ -4,14 +4,36 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Marine Online</title>
-  <link rel="stylesheet" href="app.css?v=29" />
+  <link rel="stylesheet" href="app.css?v=31" />
+  <script>
+    try {
+      if (localStorage.getItem("marine-light") === "night") document.documentElement.dataset.light = "night";
+    } catch (e) {}
+  </script>
 </head>
 <body>
   <header class="top">
     <div class="brand">
       <img src="logo.png?v=2" alt="Marine Online" />
     </div>
-    <time id="watchClock" class="clock"></time>
+    <div class="sys" id="sysStatus" aria-label="Глобальные статусы системы">
+      <p class="sys-pill" data-sys="link" data-state="idle"><span>Связь</span><b>…</b></p>
+      <p class="sys-pill" data-sys="watch" data-state="idle"><span>Вахта</span><b>…</b></p>
+      <p class="sys-pill" data-sys="cams" data-state="idle"><span>Камеры</span><b>…</b></p>
+      <p class="sys-pill" data-sys="rec" data-state="idle"><span>Запись</span><b>…</b></p>
+      <p class="sys-pill" data-sys="mode" data-state="idle"><span>Режим</span><b>…</b></p>
+    </div>
+    <section class="alarm-zone" id="alarmZone" aria-label="Критические тревоги" aria-live="assertive">
+      <p class="alarm-quiet">Критических тревог нет</p>
+    </section>
+    <div class="clocks" aria-label="Системное время">
+      <time id="clockUtc"><span>UTC</span><b>--:--:--</b></time>
+      <time id="clockLocal"><span>LOC</span><b>--:--:--</b></time>
+    </div>
+    <div class="light" role="group" aria-label="Освещённость">
+      <button type="button" id="lightDay" aria-pressed="true">День</button>
+      <button type="button" id="lightNight" aria-pressed="false">Ночь</button>
+    </div>
     <nav class="nav">
       <button type="button" id="showWatch" class="on">Вахта</button>
       <button type="button" id="showSetup">Настройка</button>
@@ -177,6 +199,6 @@
   </dialog>
   <script src="heavy.js?v=24"></script>
   <script src="hls.min.js?v=5"></script>
-  <script src="app.js?v=25"></script>
+  <script src="app.js?v=26"></script>
 </body>
 </html>

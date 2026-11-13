@@ -120,6 +120,7 @@ function renderStatus(status) {
       cards.delete(id);
     }
   }
+  renderSystem(status);
 }
 
 function fillCameraSelect() {
@@ -749,6 +750,7 @@ function renderPublicQueue() {
   const items = watchCases();
   if (!items.length) {
     emptyQueue("Тихо. Камера подсветится, когда включённое условие что-то найдёт. Ролик появится здесь, если у условия включена запись.");
+    renderAlarm();
     return;
   }
   queueEl.innerHTML = items.map((item) => {
@@ -769,6 +771,7 @@ function renderPublicQueue() {
       </span>
     </article>`;
   }).join("");
+  renderAlarm();
 }
 
 function renderLocalQueue(items) {
@@ -783,6 +786,7 @@ function renderLocalQueue(items) {
   queueReady = true;
   if (!visible.length) {
     emptyQueue("Тихо. Неразобранных случаев нет.");
+    renderAlarm();
     return;
   }
   const marks = reviews();
@@ -805,6 +809,7 @@ function renderLocalQueue(items) {
       </span>
     </article>`;
   }).join("");
+  renderAlarm();
 }
 
 function noteCall(cam, rule, active, video) {
@@ -980,6 +985,7 @@ async function tick() {
       publicMode = true;
       showPublicCameras();
     }
+    renderSystem(null);
   }
 }
 
@@ -1300,8 +1306,8 @@ document.querySelector("#endWatch").addEventListener("click", () => {
   renderLocalQueue(lastEvents);
 });
 
-queueEl.addEventListener("click", (event) => {
-  const target = event.target;
+function onQueueClick(event) {
+  const target = event.target instanceof Element ? event.target.closest("button") : null;
   if (!(target instanceof HTMLElement)) return;
   const caseId = target.dataset.openCase || target.dataset.ack || target.dataset.confirm || target.dataset.false;
   if (target.dataset.openCase) {
@@ -1334,19 +1340,121 @@ queueEl.addEventListener("click", (event) => {
   if (target.dataset.confirmEvent) saveReview(eventId, "confirmed");
   if (target.dataset.falseEvent) saveReview(eventId, "false");
   if (eventId) renderLocalQueue(lastEvents);
-});
+}
+queueEl.addEventListener("click", onQueueClick);
+document.querySelector("#alarmZone").addEventListener("click", onQueueClick);
 
 document.addEventListener("pointerdown", () => {
   if (audioCtx && audioCtx.state === "suspended") audioCtx.resume().catch(() => {});
 });
 
-function paintClock() {
-  const node = document.querySelector("#watchClock");
+const SHIP_MODES = {
+  alongside: "Стоянка",
+  maneuver: "Манёвр",
+  sea: "Ход",
+  manual: "Ручной",
+};
+
+function setPill(name, text, state) {
+  const node = document.querySelector(`[data-sys="${name}"]`);
   if (!node) return;
-  const now = new Date();
-  node.dateTime = now.toISOString();
-  node.textContent = now.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  node.dataset.state = state;
+  const value = node.querySelector("b");
+  if (value) value.textContent = text;
 }
+
+function renderSystem(status) {
+  if (!status) {
+    const tiles = [...wall.querySelectorAll(".card")];
+    const lost = tiles.filter((card) => (card.querySelector(".signal")?.textContent || "").includes("нет")).length;
+    const live = Math.max(0, tiles.length - lost);
+    setPill("link", "Демо", "warn");
+    setPill("watch", "Берег", "idle");
+    setPill("cams", tiles.length ? `${live}/${tiles.length}` : "0", lost ? "bad" : tiles.length ? "ok" : "idle");
+    setPill("rec", recorders.size ? String(recorders.size) : "0", recorders.size ? "warn" : "idle");
+    setPill("mode", "Демо", "idle");
+    return;
+  }
+  const cams = (status.cameras || []).filter((cam) => cam.enabled);
+  const lost = cams.filter((cam) => cam.error).length;
+  const recording = cams.filter((cam) => cam.recording).length;
+  const mode = (status.telemetry && status.telemetry.mode) || "manual";
+  setPill("link", "На связи", "ok");
+  setPill("watch", status.armed ? "Принята" : "Снята", status.armed ? "ok" : "warn");
+  setPill("cams", cams.length ? `${cams.length - lost}/${cams.length}` : "0", lost ? "bad" : cams.length ? "ok" : "idle");
+  setPill("rec", recording ? String(recording) : "0", recording ? "warn" : "ok");
+  setPill("mode", SHIP_MODES[mode] || mode, "ok");
+}
+
+function renderAlarm() {
+  const zone = document.querySelector("#alarmZone");
+  if (!zone) return;
+  if (publicMode) {
+    const items = watchCases().filter((item) => item.status === "open" && !item.acked);
+    const first = items[0];
+    paintAlarm(zone, first && {
+      title: first.ruleName,
+      meta: `${first.cameraName} · ${clock(first.at)}`,
+      more: items.length - 1,
+      actions: `<button type="button" data-ack="${escapeHtml(first.id)}">Принял</button><button type="button" data-open-case="${escapeHtml(first.id)}">Открыть</button>`,
+    });
+    return;
+  }
+  const enabled = new Set(cameras.filter((cam) => cam.enabled).map((cam) => cam.id));
+  const hidden = hiddenEvents();
+  const marks = reviews();
+  const items = lastEvents.filter((event) => enabled.has(event.camera_id) && !hidden.has(event.id) && !marks[String(event.id)]);
+  const first = items[0];
+  paintAlarm(zone, first && {
+    title: first.rule_name,
+    meta: `${first.camera_name} · ${first.started_at}`,
+    more: items.length - 1,
+    actions: `<button type="button" data-ack-event="${escapeHtml(first.id)}">Принял</button><button type="button" data-play="${escapeHtml(first.id)}">Открыть</button>`,
+  });
+}
+
+function paintAlarm(zone, row) {
+  zone.classList.toggle("hot", Boolean(row));
+  if (!row) {
+    zone.innerHTML = `<p class="alarm-quiet">Критических тревог нет</p>`;
+    return;
+  }
+  const count = row.more > 0 ? ` · ${row.more + 1}` : "";
+  zone.innerHTML = `<div class="alarm-live">
+    <span class="alarm-flag">Критическая${count}</span>
+    <div class="alarm-copy"><strong>${escapeHtml(row.title || "")}</strong><small>${escapeHtml(row.meta || "")}</small></div>
+    ${row.more > 0 ? `<span class="alarm-more">ещё ${row.more}</span>` : ""}
+    <span class="actions">${row.actions}</span>
+  </div>`;
+}
+
+function applyLight(mode) {
+  const night = mode === "night";
+  if (night) document.documentElement.dataset.light = "night";
+  else delete document.documentElement.dataset.light;
+  document.querySelector("#lightDay").setAttribute("aria-pressed", night ? "false" : "true");
+  document.querySelector("#lightNight").setAttribute("aria-pressed", night ? "true" : "false");
+  try { localStorage.setItem("marine-light", night ? "night" : "day"); } catch (error) {}
+}
+
+function paintClock() {
+  const now = new Date();
+  const stamp = { hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" };
+  const utc = document.querySelector("#clockUtc");
+  const local = document.querySelector("#clockLocal");
+  if (utc) {
+    utc.dateTime = now.toISOString();
+    utc.querySelector("b").textContent = now.toLocaleTimeString("en-GB", { ...stamp, timeZone: "UTC" });
+  }
+  if (local) {
+    local.dateTime = now.toISOString();
+    local.querySelector("b").textContent = now.toLocaleTimeString("ru-RU", stamp);
+  }
+}
+
+applyLight(document.documentElement.dataset.light === "night" ? "night" : "day");
+document.querySelector("#lightDay").addEventListener("click", () => applyLight("day"));
+document.querySelector("#lightNight").addEventListener("click", () => applyLight("night"));
 
 renderPlainRules();
 conditionsEl.appendChild(conditionRow());
