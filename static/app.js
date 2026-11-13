@@ -548,20 +548,26 @@ const CAMERA_ROLES = [
 function blankVessel(name, id) {
   const cameras = {};
   for (const role of CAMERA_ROLES) cameras[role.id] = { src: "" };
-  return { id: id || `vessel-${Date.now()}`, name: name || "Судно", cameras };
+  return { id: id || `vessel-${Date.now()}`, name: name || "SHIP Name", cameras };
 }
 
 function loadFleet() {
   const stored = loadJson(FLEET_KEY, null);
   const fleet = stored && Array.isArray(stored.vessels) && stored.vessels.length
     ? stored
-    : { view: "fleet", selected: "vessel-1", vessels: [blankVessel("Судно 1", "vessel-1")] };
+    : { view: "fleet", selected: "vessel-1", vessels: [blankVessel("SHIP Name", "vessel-1")] };
   let renamed = false;
-  for (const vessel of fleet.vessels) {
-    if (vessel.name === "Азов") {
+  const named = fleet.vessels.some((vessel) => vessel.name === "SHIP Name");
+  if (!named) {
+    const vessel = fleet.vessels.find((item) => item.name === "Азов")
+      || fleet.vessels.find((item) => item.id === "vessel-1" && item.name === "Судно 1")
+      || fleet.vessels.find((item) => item.name === "Судно 1");
+    if (vessel) {
       vessel.name = "SHIP Name";
       renamed = true;
     }
+  }
+  for (const vessel of fleet.vessels) {
     vessel.cameras = vessel.cameras || {};
     for (const role of CAMERA_ROLES) {
       if (!vessel.cameras[role.id] || typeof vessel.cameras[role.id].src !== "string") {
