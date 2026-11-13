@@ -803,7 +803,8 @@ function renderPublicQueue() {
       <span class="actions">
         <button type="button" data-open-case="${item.id}">Открыть</button>
         ${item.status === "open" && !item.acked ? `<button type="button" data-ack="${item.id}">Принял</button>` : ""}
-        ${item.status === "open" ? `<button type="button" data-confirm="${item.id}" title="Подтвердить">Верно</button><button type="button" data-false="${item.id}" title="Ложная тревога">Ложная</button>` : ""}
+        <button type="button" data-open-folder title="Открыть папку с записями">Папка</button>
+        ${item.status === "open" ? `<button type="button" data-false="${item.id}" title="Ложная тревога">Ложная</button>` : ""}
       </span>
     </article>`;
   }).join("");
@@ -842,7 +843,8 @@ function renderLocalQueue(items) {
       <span class="actions">
         <button type="button" data-play="${event.id}">Открыть</button>
         ${!mark ? `<button type="button" data-ack-event="${event.id}">Принял</button>` : ""}
-        ${!done ? `<button type="button" data-confirm-event="${event.id}" title="Подтвердить">Верно</button><button type="button" data-false-event="${event.id}" title="Ложная тревога">Ложная</button>` : ""}
+        <button type="button" data-open-folder title="Открыть папку с записями">Папка</button>
+        ${!done ? `<button type="button" data-false-event="${event.id}" title="Ложная тревога">Ложная</button>` : ""}
       </span>
     </article>`;
   }).join("");
@@ -1343,9 +1345,25 @@ document.querySelector("#endWatch").addEventListener("click", () => {
   renderLocalQueue(lastEvents);
 });
 
+const RECORDINGS_PAGE = "https://github.com/gaszapros/marine-vms/releases/tag/recordings";
+
+function openRecordingsFolder() {
+  if (!publicMode) {
+    fetch("/api/recordings/open", { method: "POST" }).then((response) => {
+      if (!response.ok) window.open(RECORDINGS_PAGE, "_blank", "noopener");
+    }).catch(() => window.open(RECORDINGS_PAGE, "_blank", "noopener"));
+    return;
+  }
+  window.open(RECORDINGS_PAGE, "_blank", "noopener");
+}
+
 function onQueueClick(event) {
   const target = event.target instanceof Element ? event.target.closest("button") : null;
   if (!(target instanceof HTMLElement)) return;
+  if ("openFolder" in target.dataset) {
+    openRecordingsFolder();
+    return;
+  }
   const caseId = target.dataset.openCase || target.dataset.ack || target.dataset.confirm || target.dataset.false;
   if (target.dataset.openCase) {
     const item = watchCases().find((row) => row.id === target.dataset.openCase);

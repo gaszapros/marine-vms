@@ -6,6 +6,8 @@ import csv
 import io
 import logging
 import os
+import subprocess
+import sys
 import time
 from typing import Literal
 
@@ -18,7 +20,7 @@ from starlette.background import BackgroundTask
 from pydantic import BaseModel, Field, model_validator
 from contextlib import asynccontextmanager
 
-from app.config import ROOT
+from app.config import MEDIA, ROOT, ensure_dirs
 from app import db
 from app.engine import engine
 from app.github_store import GithubError, materialize_clip, parse_ref, present_event
@@ -132,6 +134,25 @@ def app_css() -> FileResponse:
 @app.get("/app.js")
 def app_js() -> FileResponse:
     return FileResponse(ROOT / "static" / "app.js", media_type="text/javascript")
+
+
+def _open_folder(path) -> None:
+    if os.name == "nt":
+        os.startfile(path)  # noqa: S606
+        return
+    opener = "open" if sys.platform == "darwin" else "xdg-open"
+    subprocess.Popen([opener, str(path)])
+
+
+@app.post("/api/recordings/open")
+def open_recordings_folder() -> dict:
+    ensure_dirs()
+    try:
+        _open_folder(MEDIA)
+    except OSError as error:
+        logger.exception("не открылась папка записей")
+        raise HTTPException(500, "не удалось открыть папку записей") from error
+    return {"ok": True}
 
 
 @app.get("/api/health")
