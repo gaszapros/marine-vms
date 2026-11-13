@@ -803,7 +803,7 @@ function renderPublicQueue() {
       <span class="actions">
         <button type="button" data-open-case="${item.id}">Открыть</button>
         ${item.status === "open" && !item.acked ? `<button type="button" data-ack="${item.id}">Принял</button>` : ""}
-        <button type="button" data-open-folder title="Открыть папку с записями">Папка</button>
+        <button type="button" data-open-folder="${item.id}" data-folder-kind="case" title="Скачать запись этой карточки">Папка</button>
         ${item.status === "open" ? `<button type="button" data-false="${item.id}" title="Ложная тревога">Ложная</button>` : ""}
       </span>
     </article>`;
@@ -843,7 +843,7 @@ function renderLocalQueue(items) {
       <span class="actions">
         <button type="button" data-play="${event.id}">Открыть</button>
         ${!mark ? `<button type="button" data-ack-event="${event.id}">Принял</button>` : ""}
-        <button type="button" data-open-folder title="Открыть папку с записями">Папка</button>
+        <button type="button" data-open-folder="${event.id}" data-folder-kind="event" title="Открыть файл этой записи">Папка</button>
         ${!done ? `<button type="button" data-false-event="${event.id}" title="Ложная тревога">Ложная</button>` : ""}
       </span>
     </article>`;
@@ -1345,23 +1345,72 @@ document.querySelector("#endWatch").addEventListener("click", () => {
   renderLocalQueue(lastEvents);
 });
 
-const RECORDINGS_PAGE = "https://github.com/gaszapros/marine-vms/releases/tag/recordings";
+function recordingName(camera, at, ext, id) {
+  const date = new Date(at || "");
+  const stamp = Number.isNaN(date.getTime())
+    ? "запись"
+    : date.toISOString().slice(0, 19).replace(/[-:]/g, "").replace("T", "_");
+  const who = String(camera || "камера").replace(/[\\/:*?"<>|]+/g, " ").trim().slice(0, 48) || "камера";
+  const tail = String(id || "").replace(/[\\/:*?"<>|]+/g, "").slice(-12);
+  return `${who} ${stamp}${tail ? ` ${tail}` : ""}.${ext}`;
+}
 
-function openRecordingsFolder() {
+function saveFile(blob, name) {
+  const link = document.createElement("a");
+  const href = URL.createObjectURL(blob);
+  link.href = href;
+  link.download = name;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(href), 1500);
+}
+
+function openCaseRecording(id) {
+  const item = watchCases().find((row) => row.id === id);
+  if (!item) return;
+  const clip = item.clip ? loadClip(item.id) : Promise.resolve(null);
+  clip.then(async (blob) => {
+    if (blob) {
+      const ext = /mp4/i.test(blob.type) ? "mp4" : "webm";
+      saveFile(blob, recordingName(item.cameraName, item.at, ext, item.id));
+      return;
+    }
+    if (!item.frame) return;
+    const frame = await fetch(item.frame).then((response) => response.blob());
+    saveFile(frame, recordingName(item.cameraName, item.at, "jpg", item.id));
+  }).catch(() => {});
+}
+
+function openEventRecording(id) {
+  const event = lastEvents.find((row) => String(row.id) === String(id));
+  const direct = event && event.github_url;
   if (!publicMode) {
-    fetch("/api/recordings/open", { method: "POST" }).then((response) => {
-      if (!response.ok) window.open(RECORDINGS_PAGE, "_blank", "noopener");
-    }).catch(() => window.open(RECORDINGS_PAGE, "_blank", "noopener"));
+    fetch("/api/recordings/open", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ event_id: Number(id) }),
+    }).then(async (response) => {
+      if (!response.ok) {
+        if (direct) window.open(direct, "_blank", "noopener");
+        return;
+      }
+      const body = await response.json();
+      if (body.url) window.open(body.url, "_blank", "noopener");
+    }).catch(() => {
+      if (direct) window.open(direct, "_blank", "noopener");
+    });
     return;
   }
-  window.open(RECORDINGS_PAGE, "_blank", "noopener");
+  if (direct) window.open(direct, "_blank", "noopener");
 }
 
 function onQueueClick(event) {
   const target = event.target instanceof Element ? event.target.closest("button") : null;
   if (!(target instanceof HTMLElement)) return;
   if ("openFolder" in target.dataset) {
-    openRecordingsFolder();
+    if (target.dataset.folderKind === "event") openEventRecording(target.dataset.openFolder);
+    else openCaseRecording(target.dataset.openFolder);
     return;
   }
   const caseId = target.dataset.openCase || target.dataset.ack || target.dataset.confirm || target.dataset.false;

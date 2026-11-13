@@ -9,6 +9,7 @@ import os
 import subprocess
 import sys
 import time
+from pathlib import Path
 from typing import Literal
 
 import cv2
@@ -144,15 +145,37 @@ def _open_folder(path) -> None:
     subprocess.Popen([opener, str(path)])
 
 
+class OpenRecordingIn(BaseModel):
+    event_id: int | None = None
+
+
+def _reveal_file(path) -> None:
+    if os.name == "nt":
+        subprocess.Popen(["explorer", f"/select,{path}"])
+        return
+    _open_folder(path.parent)
+
+
 @app.post("/api/recordings/open")
-def open_recordings_folder() -> dict:
+def open_recordings_folder(body: OpenRecordingIn | None = None) -> dict:
     ensure_dirs()
-    try:
+    event_id = None if body is None else body.event_id
+    if event_id is None:
         _open_folder(MEDIA)
-    except OSError as error:
-        logger.exception("не открылась папка записей")
-        raise HTTPException(500, "не удалось открыть папку записей") from error
-    return {"ok": True}
+        return {"ok": True}
+    event = db.get_event(event_id)
+    if event is None:
+        raise HTTPException(404, "событие не найдено")
+    raw = event.get("clip_path") or ""
+    if raw and not raw.startswith("github:"):
+        path = Path(raw)
+        if path.is_file():
+            _reveal_file(path)
+            return {"ok": True, "name": path.name}
+    url = present_event(event).get("github_url")
+    if url:
+        return {"ok": True, "url": url}
+    raise HTTPException(404, "файла этой записи нет")
 
 
 @app.get("/api/health")
