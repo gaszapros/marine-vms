@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Marine Online</title>
-  <link rel="stylesheet" href="app.css?v=31" />
+  <link rel="stylesheet" href="app.css?v=32" />
   <script>
     try {
       if (localStorage.getItem("marine-light") === "night") document.documentElement.dataset.light = "night";
@@ -85,9 +85,14 @@
     <section class="queue-bar" aria-label="Нарушения">
       <div class="panel-head">
         <h2>Нарушения</h2>
+        <span id="queuePos" class="queue-pos"></span>
         <button type="button" id="endWatch">Конец вахты</button>
       </div>
-      <div id="queue" class="events"></div>
+      <div class="queue-rail">
+        <button type="button" id="queuePrev" class="queue-step" aria-label="Предыдущие записи" disabled>‹</button>
+        <div id="queue" class="events" tabindex="0"></div>
+        <button type="button" id="queueNext" class="queue-step" aria-label="Следующие записи" disabled>›</button>
+      </div>
     </section>
   </main>
 
@@ -199,6 +204,6 @@
   </dialog>
   <script src="heavy.js?v=24"></script>
   <script src="hls.min.js?v=5"></script>
-  <script src="app.js?v=26"></script>
+  <script src="app.js?v=29"></script>
 </body>
 </html>

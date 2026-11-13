@@ -744,6 +744,42 @@ function persistConditionForm() {
 
 function emptyQueue(text) {
   queueEl.innerHTML = `<p class="hint">${text}</p>`;
+  refreshQueueNav();
+}
+
+function refreshQueueNav() {
+  const prev = document.querySelector("#queuePrev");
+  const next = document.querySelector("#queueNext");
+  const pos = document.querySelector("#queuePos");
+  if (!prev || !next || !pos) return;
+  const cards = [...queueEl.querySelectorAll(".case")];
+  const max = queueEl.scrollWidth - queueEl.clientWidth;
+  const idle = cards.length < 2 || max <= 2;
+  prev.disabled = idle || queueEl.scrollLeft <= 2;
+  next.disabled = idle || queueEl.scrollLeft >= max - 2;
+  if (cards.length < 2) {
+    pos.textContent = cards.length ? "1" : "";
+    return;
+  }
+  const left = queueEl.scrollLeft;
+  const right = left + queueEl.clientWidth;
+  let start = cards.findIndex((card) => card.offsetLeft + card.offsetWidth > left + 12);
+  if (start < 0) start = cards.length - 1;
+  let end = cards.findIndex((card) => card.offsetLeft >= right - 12);
+  const last = end === -1 ? cards.length : Math.max(start + 1, end);
+  pos.textContent = start + 1 === last ? `${last} из ${cards.length}` : `${start + 1}–${last} из ${cards.length}`;
+}
+
+function scrollQueue(direction) {
+  const cards = [...queueEl.querySelectorAll(".case")];
+  if (!cards.length) return;
+  const left = queueEl.scrollLeft;
+  const target = direction > 0
+    ? cards.find((card) => card.offsetLeft > left + 8)
+    : [...cards].reverse().find((card) => card.offsetLeft < left - 8);
+  if (!target) return;
+  queueEl.scrollTo({ left: target.offsetLeft, behavior: "auto" });
+  refreshQueueNav();
 }
 
 function renderPublicQueue() {
@@ -757,21 +793,22 @@ function renderPublicQueue() {
     const calling = item.status === "open" && !item.acked && openCalls.has(item.cameraId);
     const done = item.status !== "open";
     const label = item.status === "confirmed" ? "подтверждено" : item.status === "false" ? "ложная тревога" : "";
+    const meta = [item.cameraName, clock(item.at), item.clip ? "ролик" : "", label].filter(Boolean).join(" · ");
     return `<article class="event case${calling ? " calling" : ""}${done ? " done" : ""}">
       <img src="${item.frame || "data:image/gif;base64,R0lGODlhAQABAAAAACw="}" alt="" />
-      <div>
+      <div class="case-copy">
         <strong>${item.ruleName}</strong>
-        <small>${item.cameraName} · ${clock(item.at)}</small>
-        <small>${item.clip ? "ролик" : ""}${label ? ` ${label}` : ""}</small>
+        <small>${meta}</small>
       </div>
       <span class="actions">
         <button type="button" data-open-case="${item.id}">Открыть</button>
         ${item.status === "open" && !item.acked ? `<button type="button" data-ack="${item.id}">Принял</button>` : ""}
-        ${item.status === "open" ? `<button type="button" data-confirm="${item.id}">Подтвердить</button><button type="button" data-false="${item.id}">Ложная тревога</button>` : ""}
+        ${item.status === "open" ? `<button type="button" data-confirm="${item.id}" title="Подтвердить">Верно</button><button type="button" data-false="${item.id}" title="Ложная тревога">Ложная</button>` : ""}
       </span>
     </article>`;
   }).join("");
   renderAlarm();
+  refreshQueueNav();
 }
 
 function renderLocalQueue(items) {
@@ -795,21 +832,22 @@ function renderLocalQueue(items) {
     const calling = wasReady && !mark && fresh.some((item) => item.id === event.id);
     const done = mark === "confirmed" || mark === "false";
     const label = mark === "confirmed" ? "подтверждено" : mark === "false" ? "ложная тревога" : "";
+    const meta = [event.camera_name, event.started_at, label].filter(Boolean).join(" · ");
     return `<article class="event case${calling ? " calling" : ""}${done ? " done" : ""}">
       <img src="${url(`/api/events/${event.id}/thumb`)}" alt="" />
-      <div>
+      <div class="case-copy">
         <strong>${event.rule_name}</strong>
-        <small>${event.camera_name} · ${event.started_at}</small>
-        <small>${label}</small>
+        <small>${meta}</small>
       </div>
       <span class="actions">
         <button type="button" data-play="${event.id}">Открыть</button>
         ${!mark ? `<button type="button" data-ack-event="${event.id}">Принял</button>` : ""}
-        ${!done ? `<button type="button" data-confirm-event="${event.id}">Подтвердить</button><button type="button" data-false-event="${event.id}">Ложная тревога</button>` : ""}
+        ${!done ? `<button type="button" data-confirm-event="${event.id}" title="Подтвердить">Верно</button><button type="button" data-false-event="${event.id}" title="Ложная тревога">Ложная</button>` : ""}
       </span>
     </article>`;
   }).join("");
   renderAlarm();
+  refreshQueueNav();
 }
 
 function noteCall(cam, rule, active, video) {
@@ -1343,6 +1381,50 @@ function onQueueClick(event) {
 }
 queueEl.addEventListener("click", onQueueClick);
 document.querySelector("#alarmZone").addEventListener("click", onQueueClick);
+document.querySelector("#queuePrev").addEventListener("click", () => scrollQueue(-1));
+document.querySelector("#queueNext").addEventListener("click", () => scrollQueue(1));
+queueEl.addEventListener("scroll", refreshQueueNav, { passive: true });
+let queueWheelSnap = 0;
+queueEl.addEventListener("wheel", (event) => {
+  if (queueEl.scrollWidth <= queueEl.clientWidth + 2) return;
+  const delta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
+  if (!delta) return;
+  event.preventDefault();
+  queueEl.style.scrollSnapType = "none";
+  queueEl.scrollLeft += delta;
+  clearTimeout(queueWheelSnap);
+  queueWheelSnap = setTimeout(() => { queueEl.style.scrollSnapType = ""; }, 140);
+}, { passive: false });
+let queueDrag = null;
+queueEl.addEventListener("pointerdown", (event) => {
+  if (event.button !== 0 || event.target.closest("button, a")) return;
+  queueDrag = { id: event.pointerId, x: event.clientX, left: queueEl.scrollLeft, moved: false };
+  queueEl.setPointerCapture(event.pointerId);
+});
+queueEl.addEventListener("pointermove", (event) => {
+  if (!queueDrag || event.pointerId !== queueDrag.id) return;
+  const dx = event.clientX - queueDrag.x;
+  if (Math.abs(dx) > 4) {
+    queueDrag.moved = true;
+    queueEl.classList.add("dragging");
+  }
+  queueEl.scrollLeft = queueDrag.left - dx;
+});
+function endQueueDrag(event) {
+  if (!queueDrag || event.pointerId !== queueDrag.id) return;
+  const moved = queueDrag.moved;
+  queueDrag = null;
+  queueEl.classList.remove("dragging");
+  if (moved) queueEl.dataset.dragged = "1";
+}
+queueEl.addEventListener("pointerup", endQueueDrag);
+queueEl.addEventListener("pointercancel", endQueueDrag);
+queueEl.addEventListener("click", (event) => {
+  if (queueEl.dataset.dragged !== "1") return;
+  delete queueEl.dataset.dragged;
+  event.preventDefault();
+  event.stopPropagation();
+}, true);
 
 document.addEventListener("pointerdown", () => {
   if (audioCtx && audioCtx.state === "suspended") audioCtx.resume().catch(() => {});
