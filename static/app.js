@@ -1200,6 +1200,7 @@ function setDockFolded(folded, animate = true) {
   const motion = animate && !dockMotion.matches;
   if (!motion) stageRow.classList.add("no-motion");
   stageRow.classList.toggle("folded", folded);
+  document.querySelector(".top").classList.toggle("dock-folded", folded);
   if (!folded || !motion) stageRow.classList.toggle("settled", folded);
   foldDock.setAttribute("aria-expanded", folded ? "false" : "true");
   foldDock.textContent = folded ? "Настройки" : "Свернуть";
