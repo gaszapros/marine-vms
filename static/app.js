@@ -716,8 +716,9 @@ function vesselCameras(vessel) {
     role: role.id,
     name: role.title,
     location: vessel.cameras[role.id].place || vessel.name,
-    src: vessel.cameras[role.id].src.trim(),
     vesselId: vessel.id,
+    vesselName: vessel.name,
+    src: vessel.cameras[role.id].src.trim(),
   }));
 }
 
@@ -1324,6 +1325,7 @@ async function tick() {
 
 function stopPublicPlayers() {
   heldRecords.clear();
+  if (window.Sense) Sense.reset();
   for (const id of [...recorders.keys()]) stopRecord(id);
   if (window.HeavyWatch) HeavyWatch.stop();
   for (const player of publicPlayers) player.destroy();
@@ -1533,6 +1535,163 @@ function mountStream(stage, stream, onSignal) {
   return { video: null };
 }
 
+const EVENT_KEY = "marine-events";
+const NOTICE_KEY = "marine-notices";
+const TRACK_COLOR = {
+  person: "#0c6f86",
+  car: "#a15c00",
+  freight: "#d92d2d",
+  vessel: "#0c7a4b",
+  aerial: "#7a3ea1",
+  drone: "#d92d2d",
+};
+const CONTOUR = [
+  ["detect", "Обнаружение"],
+  ["class", "Класс"],
+  ["track", "Трек"],
+  ["motion", "Движение"],
+  ["activity", "Действия"],
+  ["operation", "Операции"],
+  ["maritime", "Морская угроза"],
+  ["aerial", "Воздух"],
+  ["anomaly", "Аномалия"],
+  ["notice", "Уведомления"],
+  ["base", "База событий"],
+  ["fleet", "Флот"],
+];
+
+function loadEvents() {
+  const items = loadJson(EVENT_KEY, []);
+  return Array.isArray(items) ? items : [];
+}
+
+function loadNotices() {
+  const items = loadJson(NOTICE_KEY, []);
+  return Array.isArray(items) ? items : [];
+}
+
+function rememberEvent(item) {
+  const items = [item, ...loadEvents()].slice(0, 200);
+  localStorage.setItem(EVENT_KEY, JSON.stringify(items));
+  if (item.severity === "info") return;
+  const notice = {
+    id: `nt-${item.id}`,
+    eventId: item.id,
+    at: item.at,
+    title: item.title,
+    severity: item.severity,
+    cameraName: item.cameraName,
+    vesselName: item.vesselName,
+    acked: false,
+    channel: "вахта",
+  };
+  localStorage.setItem(NOTICE_KEY, JSON.stringify([notice, ...loadNotices()].slice(0, 80)));
+}
+
+function recentEvents(ms = 15 * 60 * 1000) {
+  const cutoff = Date.now() - ms;
+  return loadEvents().filter((item) => item.at >= cutoff);
+}
+
+function paintTracks(card, tracks) {
+  const canvas = card.querySelector("canvas.tracks");
+  const stage = card.querySelector(".stage");
+  if (!canvas || !stage) return;
+  const width = stage.clientWidth;
+  const height = stage.clientHeight;
+  if (!width || !height) return;
+  if (canvas.width !== width) canvas.width = width;
+  if (canvas.height !== height) canvas.height = height;
+  const ctx = canvas.getContext("2d");
+  ctx.clearRect(0, 0, width, height);
+  ctx.lineWidth = 2;
+  ctx.font = "12px sans-serif";
+  for (const track of tracks) {
+    ctx.strokeStyle = TRACK_COLOR[track.category] || "#043656";
+    ctx.strokeRect(track.x * width, track.y * height, Math.max(8, track.w * width), Math.max(8, track.h * height));
+    ctx.fillStyle = ctx.strokeStyle;
+    ctx.fillText(`${track.id} ${track.label}`, track.x * width, Math.max(12, track.y * height - 4));
+    ctx.beginPath();
+    track.trail.forEach((point, index) => {
+      const x = point.x * width;
+      const y = point.y * height;
+      if (index === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+  }
+}
+
+function takeScene(cam, card, objects) {
+  if (!window.Sense) return;
+  const scene = Sense.observe({
+    id: cam.id,
+    name: cam.name,
+    vesselId: cam.vesselId || "",
+    vesselName: cam.vesselName || cam.location || "",
+  }, objects, Date.now());
+  paintTracks(card, scene.tracks);
+  if (!scene.events.length) {
+    renderContourSoon();
+    return;
+  }
+  for (const item of scene.events) rememberEvent(item);
+  renderContour();
+  renderAlarm();
+}
+
+let contourTimer = 0;
+function renderContourSoon() {
+  if (contourTimer) return;
+  contourTimer = window.setTimeout(() => {
+    contourTimer = 0;
+    renderContour();
+  }, 700);
+}
+
+function renderContour() {
+  const chips = document.querySelector("#contourChips");
+  const dash = document.querySelector("#fleetDash");
+  const strip = document.querySelector("#eventStrip");
+  if (!chips || !dash || !strip) return;
+  const events = recentEvents();
+  const notices = loadNotices().filter((item) => item.at >= Date.now() - 15 * 60 * 1000);
+  const live = window.Sense ? Sense.snapshot() : [];
+  const tracks = live.reduce((sum, row) => sum + row.tracks, 0);
+  const count = (kind) => events.filter((item) => item.kind === kind).length;
+  const hot = new Set(["maritime", "aerial", "anomaly"]);
+  const values = {
+    detect: tracks,
+    class: tracks,
+    track: tracks,
+    motion: count("motion"),
+    activity: count("activity"),
+    operation: count("operation"),
+    maritime: count("maritime"),
+    aerial: count("aerial"),
+    anomaly: count("anomaly"),
+    notice: notices.length,
+    base: loadEvents().length,
+    fleet: loadFleet().vessels.length,
+  };
+  chips.innerHTML = CONTOUR.map(([id, title]) => {
+    const value = values[id] || 0;
+    const cls = hot.has(id) && value ? "hot" : value ? "on" : "";
+    return `<li class="${cls}">${escapeHtml(title)} ${value}</li>`;
+  }).join("");
+  const fleet = loadFleet();
+  dash.innerHTML = fleet.vessels.map((vessel) => {
+    const rows = events.filter((item) => item.vesselId === vessel.id);
+    const alarm = rows.some((item) => item.severity === "alarm");
+    const text = rows.length ? rows.slice(0, 2).map((item) => item.title).join(" · ") : "тихо";
+    return `<article class="${alarm ? "alarm" : ""}"><strong>${escapeHtml(vessel.name)}</strong><span>${escapeHtml(text)}</span></article>`;
+  }).join("");
+  const latest = loadEvents().slice(0, 3);
+  strip.textContent = latest.length
+    ? latest.map((item) => `${item.vesselName || item.cameraName}: ${item.title}`).join("   ·   ")
+    : "Событий пока нет.";
+}
+
 function showPublicCameras() {
   stopPublicPlayers();
   cards.clear();
@@ -1580,16 +1739,23 @@ function showPublicCameras() {
     if (place) place.textContent = cam.location || "";
     wall.appendChild(card);
     const signal = card.querySelector(".signal");
-    const mounted = mountStream(card.querySelector(".stage"), stream, (text) => {
+    const stage = card.querySelector(".stage");
+    const mounted = mountStream(stage, stream, (text) => {
       if (signal) signal.textContent = text;
     });
     if (!mounted.video) continue;
+    const canvas = document.createElement("canvas");
+    canvas.className = "tracks";
+    stage.appendChild(canvas);
     const video = mounted.video;
     watches.push({
       cameraId: cam.id,
       video,
       live() {
-        return watchRules().some((rule) => rule.cameraId === cam.id && rule.enabled && rule.when === "heavy");
+        return true;
+      },
+      onScene(objects) {
+        takeScene(cam, card, objects);
       },
       onMarks(count) {
         const matched = watchRules().filter((rule) => rule.cameraId === cam.id && rule.enabled && rule.when === "heavy" && count > 0);
@@ -2015,6 +2181,13 @@ function openSavedCase(item) {
 function onQueueClick(event) {
   const target = event.target instanceof Element ? event.target.closest("button") : null;
   if (!(target instanceof HTMLElement)) return;
+  if (target.dataset.ackNotice) {
+    const items = loadNotices().map((item) => (item.id === target.dataset.ackNotice ? { ...item, acked: true } : item));
+    localStorage.setItem(NOTICE_KEY, JSON.stringify(items));
+    renderAlarm();
+    renderContour();
+    return;
+  }
   if ("openFolder" in target.dataset) {
     if (target.dataset.folderKind === "event") openEventRecording(target.dataset.openFolder);
     else openCaseRecording(target.dataset.openFolder);
@@ -2118,6 +2291,17 @@ function renderAlarm() {
   const zone = document.querySelector("#alarmZone");
   if (!zone) return;
   if (publicMode) {
+    const notices = loadNotices().filter((item) => !item.acked && item.severity === "alarm");
+    if (notices.length) {
+      const first = notices[0];
+      paintAlarm(zone, {
+        title: first.title,
+        meta: `${first.vesselName || first.cameraName} · ${clock(first.at)}`,
+        more: notices.length - 1,
+        actions: `<button type="button" data-ack-notice="${escapeHtml(first.id)}">Принял</button>`,
+      });
+      return;
+    }
     const items = watchCases().filter((item) => item.status === "open" && !item.acked);
     const first = items[0];
     paintAlarm(zone, first && {
@@ -2319,6 +2503,7 @@ setInterval(paintClock, 1000);
 reloadConfig().catch(() => {}).finally(tick);
 setInterval(tick, 1500);
 refreshSharedFleet();
+renderContour();
 setInterval(refreshSharedFleet, 15000);
 document.addEventListener("visibilitychange", () => {
   if (!document.hidden) refreshSharedFleet();

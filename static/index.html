@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Marine Online</title>
-  <link rel="stylesheet" href="app.css?v=45" />
+  <link rel="stylesheet" href="app.css?v=46" />
   <script>
     try {
       if (localStorage.getItem("marine-light") === "night") document.documentElement.dataset.light = "night";
@@ -103,6 +103,11 @@
       </div>
     </aside>
     </div>
+    <section class="contour" id="contour" aria-label="Контур наблюдения">
+      <div id="fleetDash" class="fleet-dash"></div>
+      <ul id="contourChips" class="chips"></ul>
+      <div id="eventStrip" class="event-strip">Событий пока нет.</div>
+    </section>
     <section class="queue-bar" aria-label="Нарушения">
       <div class="panel-head">
         <h2>Нарушения</h2>
@@ -225,8 +230,9 @@
       <p id="playerMeta"></p>
     </form>
   </dialog>
-  <script src="heavy.js?v=27"></script>
+  <script src="heavy.js?v=28"></script>
+  <script src="sense.js?v=1"></script>
   <script src="hls.min.js?v=5"></script>
-  <script src="app.js?v=52"></script>
+  <script src="app.js?v=53"></script>
 </body>
 </html>

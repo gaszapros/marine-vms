@@ -4,6 +4,14 @@ window.HeavyWatch = (() => {
   const CAR = 2;
   const BUS = 5;
   const TRUCK = 7;
+  const KINDS = [
+    { id: 0, category: "person", label: "человек" },
+    { id: 2, category: "car", label: "легковой" },
+    { id: 4, category: "aerial", label: "воздушный" },
+    { id: 5, category: "freight", label: "грузовой" },
+    { id: 7, category: "freight", label: "грузовой" },
+    { id: 8, category: "vessel", label: "судно" },
+  ];
   const anchors = buildAnchors();
   const FORMULAS = {
     cuomo: { y0: 0.45, y1: 0.98, carH0: 0.024, carH1: 0.058, carW0: 0.018, carW1: 0.038, mul: 1.65, mild: 1.15, score: 0.18 },
@@ -181,8 +189,49 @@ window.HeavyWatch = (() => {
     return kept.length;
   }
 
+  function readObjects(output, sample) {
+    const data = output.data;
+    const count = output.dims[1];
+    const widthOut = output.dims[2];
+    const found = [];
+    for (let i = 0; i < count; i += 1) {
+      const base = i * widthOut;
+      const objectness = data[base + 4];
+      if (objectness < 0.2) continue;
+      let best = null;
+      for (const kind of KINDS) {
+        const score = objectness * data[base + 5 + kind.id];
+        if (!best || score > best.score) best = { kind, score };
+      }
+      if (!best || best.score < 0.35) continue;
+      const centerX = (data[base] + anchors.gx[i]) * anchors.step[i];
+      const centerY = (data[base + 1] + anchors.gy[i]) * anchors.step[i];
+      const boxW = Math.exp(data[base + 2]) * anchors.step[i];
+      const boxH = Math.exp(data[base + 3]) * anchors.step[i];
+      const w = boxW / sample.scaleX / sample.width;
+      const h = boxH / sample.scaleY / sample.height;
+      const x = (centerX - boxW / 2) / sample.scaleX / sample.width;
+      const y = (centerY - boxH / 2) / sample.scaleY / sample.height;
+      if (w < 0.012 || h < 0.012 || w > 0.92 || h > 0.92) continue;
+      let category = best.kind.category;
+      let label = best.kind.label;
+      if (category === "aerial" && w < 0.08 && h < 0.08) {
+        category = "drone";
+        label = "беспилотник";
+      }
+      found.push({ category, label, score: best.score, x, y, w, h });
+    }
+    found.sort((left, right) => right.score - left.score);
+    const kept = [];
+    for (const box of found) {
+      if (kept.some((item) => overlap(item, box) > 0.45)) continue;
+      kept.push(box);
+    }
+    return kept.slice(0, 24);
+  }
+
   function detect(video, cameraId) {
-    if (video.readyState < 2 || !video.videoWidth) return Promise.resolve(0);
+    if (video.readyState < 2 || !video.videoWidth) return Promise.resolve({ freight: 0, objects: [] });
     const sample = letterbox(video);
     const id = job + 1;
     job = id;
@@ -194,7 +243,11 @@ window.HeavyWatch = (() => {
           reject(new Error(event.data.message));
           return;
         }
-        resolve(countFreight({ data: event.data.data, dims: event.data.dims }, sample, cameraId));
+        const output = { data: event.data.data, dims: event.data.dims };
+        resolve({
+          freight: countFreight(output, sample, cameraId),
+          objects: readObjects(output, sample),
+        });
       };
       ready.addEventListener("message", onMessage);
       ready.postMessage({ type: "run", id, input: sample.input }, [sample.input.buffer]);
@@ -231,8 +284,10 @@ window.HeavyWatch = (() => {
       index += 1;
       if (entry.video.readyState >= 2) {
         try {
-          const count = await detect(entry.video, entry.cameraId);
+          const scene = await detect(entry.video, entry.cameraId);
           if (token !== generation) return;
+          const count = scene.freight || 0;
+          if (entry.onScene) entry.onScene(scene.objects || []);
           const now = performance.now();
           if (count > 0) entry.seen = now;
           const active = count > 0 || (entry.seen > 0 && now - entry.seen < 2500);
