@@ -1,0 +1,18 @@
+---
+description: Ship every finished change to GitHub main so Pages stays current
+alwaysApply: true
+---
+
+# GitHub first
+
+The live console is GitHub Pages from `main`: https://gaszapros.github.io/marine-vms/. A local edit is not done until it is on `origin/main`.
+
+After a finished change:
+
+1. Commit the relevant files. Match the repo style: one imperative sentence, like `Show system status in the watch header.`
+2. Push to `origin` `main`. Do not open a pull request for routine console work. Pages deploys only from `main`.
+3. For a user-visible static change, confirm the Pages workflow succeeded.
+
+Do not update git config. If commit fails because the author is unset, reuse the name and email from `git log -1` for that commit only. Do not force-push. Do not commit secrets (`.env`, credentials).
+
+Leave work uncommitted only when the user asked to stop, the change is incomplete, or a hook rejects the commit.
