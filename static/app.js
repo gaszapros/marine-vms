@@ -439,11 +439,11 @@ document.body.addEventListener("click", async (event) => {
   }
   if (play) {
     const item = (await api("/api/events")).find((row) => row.id === Number(play));
-    document.querySelector("#playerTitle").textContent = item ? item.rule_name : "Клип";
-    document.querySelector("#playerMeta").textContent = item ? item.reason : "";
-    const img = document.querySelector("#playerImg");
-    img.src = url(`/api/events/${play}/playback?t=${Date.now()}`);
-    document.querySelector("#player").showModal();
+    openSavedVideo({
+      title: item ? item.rule_name : "Запись",
+      meta: item ? item.reason : "",
+      src: item && item.github_url ? item.github_url : url(`/api/events/${play}/clip`),
+    });
   }
 });
 
@@ -879,6 +879,8 @@ function noteCall(cam, rule, active, video) {
 }
 
 const recorders = new Map();
+const clipWaiters = new Map();
+let playerCaseId = null;
 const heldRecords = new Set();
 let clipsOpen = true;
 
@@ -918,6 +920,29 @@ function clearClips() {
   })).catch(() => {});
 }
 
+function canvasWatch(video) {
+  const canvas = document.createElement("canvas");
+  canvas.width = video.videoWidth || 640;
+  canvas.height = video.videoHeight || 360;
+  const context = canvas.getContext("2d");
+  const stream = canvas.captureStream(8);
+  const timer = setInterval(() => {
+    if (video.readyState >= 2) context.drawImage(video, 0, 0, canvas.width, canvas.height);
+  }, 125);
+  return {
+    stream,
+    stop() { clearInterval(timer); },
+  };
+}
+
+function captureWatch(video) {
+  try {
+    const direct = video.captureStream ? video.captureStream() : null;
+    if (direct && direct.getVideoTracks().length) return { stream: direct, stop() {} };
+  } catch (error) {}
+  return canvasWatch(video);
+}
+
 function stopRecord(cameraId) {
   const job = recorders.get(cameraId);
   if (!job) return;
@@ -925,6 +950,7 @@ function stopRecord(cameraId) {
   clearTimeout(job.timer);
   openCalls.delete(cameraId);
   if (job.recorder && job.recorder.state === "recording") job.recorder.stop();
+  else if (job.capture) job.capture.stop();
 }
 
 function startRecord(cam, rule, video) {
@@ -945,52 +971,87 @@ function startRecord(cam, rule, video) {
     renderPublicQueue();
     beep();
   };
-  let stream = null;
-  try {
-    stream = video.captureStream ? video.captureStream() : null;
-  } catch {
-    stream = null;
-  }
-  if (!stream || !window.MediaRecorder || video.readyState < 2) {
-    finishFrame();
-    return;
-  }
-  const mime = MediaRecorder.isTypeSupported("video/webm;codecs=vp8") ? "video/webm;codecs=vp8" : "video/webm";
-  let recorder;
-  try {
-    recorder = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 700000 });
-  } catch {
-    finishFrame();
-    return;
-  }
-  const chunks = [];
-  recorder.ondataavailable = (event) => {
-    if (event.data && event.data.size) chunks.push(event.data);
+  const mime = window.MediaRecorder && (MediaRecorder.isTypeSupported("video/webm;codecs=vp8") ? "video/webm;codecs=vp8" : "video/webm");
+  const begin = (capture) => {
+    if (!capture || !capture.stream || !window.MediaRecorder || video.readyState < 2) {
+      if (capture) capture.stop();
+      return null;
+    }
+    let recorder;
+    try {
+      recorder = new MediaRecorder(capture.stream, { mimeType: mime, videoBitsPerSecond: 700000 });
+    } catch {
+      capture.stop();
+      return null;
+    }
+    const chunks = [];
+    recorder.ondataavailable = (event) => {
+      if (event.data && event.data.size) chunks.push(event.data);
+    };
+    recorder.onstop = () => {
+      capture.stop();
+      const blob = new Blob(chunks, { type: mime });
+      if (!clipsOpen || !blob.size) return;
+      item.clip = true;
+      saveClip(item.id, blob).then(() => patchCase(item.id, { clip: true })).catch(() => {});
+      const waiting = clipWaiters.get(item.id);
+      if (waiting) {
+        clipWaiters.delete(item.id);
+        waiting(blob);
+      }
+    };
+    try {
+      recorder.start(500);
+    } catch {
+      capture.stop();
+      return null;
+    }
+    return recorder;
   };
-  recorder.onstop = () => {
-    const blob = new Blob(chunks, { type: mime });
-    if (!clipsOpen || !blob.size) return;
-    item.clip = true;
-    saveClip(item.id, blob).then(() => patchCase(item.id, { clip: true })).catch(() => {});
-  };
+  let capture = null;
   try {
-    recorder.start();
+    capture = captureWatch(video);
   } catch {
+    capture = null;
+  }
+  let recorder = begin(capture);
+  if (!recorder) {
+    try {
+      capture = canvasWatch(video);
+    } catch {
+      capture = null;
+    }
+    recorder = begin(capture);
+  }
+  if (!recorder) {
     finishFrame();
     return;
   }
+  const started = Date.now();
   const timer = setTimeout(() => stopRecord(cam.id), 20000);
-  recorders.set(cam.id, { recorder, timer });
+  recorders.set(cam.id, { recorder, timer, capture, started, item });
   finishFrame();
 }
 
 function noteRecord(cam, rule, active, video) {
+  const job = recorders.get(cam.id);
   if (!active || !rule) {
+    if (job && Date.now() - job.started < 6000) {
+      clearTimeout(job.timer);
+      job.timer = setTimeout(() => stopRecord(cam.id), 6000 - (Date.now() - job.started));
+      return;
+    }
     stopRecord(cam.id);
     heldRecords.delete(cam.id);
     return;
   }
-  if (heldRecords.has(cam.id)) return;
+  if (heldRecords.has(cam.id)) {
+    if (job) {
+      clearTimeout(job.timer);
+      job.timer = setTimeout(() => stopRecord(cam.id), Math.max(0, job.started + 20000 - Date.now()));
+    }
+    return;
+  }
   if (video.readyState < 2) return;
   heldRecords.add(cam.id);
   startRecord(cam, rule, video);
@@ -1155,8 +1216,8 @@ function showPublicCameras() {
       onMarks(count) {
         const matched = watchRules().filter((rule) => rule.cameraId === cam.id && rule.enabled && rule.when === "heavy" && count > 0);
         card.classList.toggle("alert", matched.length > 0);
-        const recording = matched.find((rule) => rule.record);
-        noteRecord(cam, recording || null, Boolean(recording), video);
+        const rule = matched[0];
+        noteRecord(cam, rule || null, Boolean(rule), video);
       },
       onError() {
         const slot = card.querySelector(".signal");
@@ -1272,8 +1333,15 @@ document.querySelector("#dropCondition").addEventListener("click", () => {
 document.querySelector("#player").addEventListener("close", () => {
   const clip = document.querySelector("#playerVideo");
   clip.pause();
+  if (clip.dataset.blob === "1" && clip.src.startsWith("blob:")) URL.revokeObjectURL(clip.src);
+  clip.dataset.blob = "";
   clip.removeAttribute("src");
+  clip.load();
   clip.hidden = true;
+  const img = document.querySelector("#playerImg");
+  img.hidden = true;
+  img.removeAttribute("src");
+  playerCaseId = null;
 });
 
 document.querySelector("#addCamera").addEventListener("submit", async (event) => {
@@ -1408,6 +1476,75 @@ function openEventRecording(id) {
   if (direct) window.open(direct, "_blank", "noopener");
 }
 
+function openSavedVideo({ title, meta, src, blob }) {
+  const clip = document.querySelector("#playerVideo");
+  const img = document.querySelector("#playerImg");
+  clip.pause();
+  if (clip.dataset.blob === "1" && clip.src.startsWith("blob:")) URL.revokeObjectURL(clip.src);
+  clip.dataset.blob = "";
+  clip.removeAttribute("src");
+  clip.hidden = true;
+  img.hidden = true;
+  img.removeAttribute("src");
+  document.querySelector("#playerTitle").textContent = title || "Запись";
+  document.querySelector("#playerMeta").textContent = meta || "";
+  document.querySelector("#player").showModal();
+  if (blob) {
+    clip.src = URL.createObjectURL(blob);
+    clip.dataset.blob = "1";
+  } else if (src) {
+    clip.src = src;
+  } else {
+    return;
+  }
+  clip.hidden = false;
+  clip.play().catch(() => {});
+}
+
+function openSavedCase(item) {
+  const clip = document.querySelector("#playerVideo");
+  const img = document.querySelector("#playerImg");
+  clip.pause();
+  if (clip.dataset.blob === "1" && clip.src.startsWith("blob:")) URL.revokeObjectURL(clip.src);
+  clip.dataset.blob = "";
+  clip.removeAttribute("src");
+  clip.hidden = true;
+  img.hidden = true;
+  img.removeAttribute("src");
+  playerCaseId = item.id;
+  document.querySelector("#playerTitle").textContent = item.ruleName;
+  document.querySelector("#playerMeta").textContent = `${item.cameraName} · ${clock(item.at)}`;
+  document.querySelector("#player").showModal();
+  const playBlob = (blob) => {
+    if (playerCaseId !== item.id || !blob) return;
+    clip.src = URL.createObjectURL(blob);
+    clip.dataset.blob = "1";
+    clip.hidden = false;
+    img.hidden = true;
+    clip.play().catch(() => {});
+  };
+  if (item.clip) {
+    loadClip(item.id).then((blob) => {
+      if (blob) playBlob(blob);
+      else if (playerCaseId === item.id && item.frame) {
+        img.hidden = false;
+        img.src = item.frame;
+      }
+    });
+    return;
+  }
+  const job = recorders.get(item.cameraId);
+  if (job && job.item && job.item.id === item.id) {
+    clipWaiters.set(item.id, playBlob);
+    stopRecord(item.cameraId);
+    return;
+  }
+  if (item.frame) {
+    img.hidden = false;
+    img.src = item.frame;
+  }
+}
+
 function onQueueClick(event) {
   const target = event.target instanceof Element ? event.target.closest("button") : null;
   if (!(target instanceof HTMLElement)) return;
@@ -1420,24 +1557,7 @@ function onQueueClick(event) {
   if (target.dataset.openCase) {
     const item = watchCases().find((row) => row.id === target.dataset.openCase);
     if (!item) return;
-    const clip = document.querySelector("#playerVideo");
-    clip.pause();
-    clip.removeAttribute("src");
-    clip.hidden = true;
-    document.querySelector("#playerTitle").textContent = item.ruleName;
-    document.querySelector("#playerMeta").textContent = `${item.cameraName} · ${clock(item.at)}`;
-    document.querySelector("#playerImg").hidden = false;
-    document.querySelector("#playerImg").src = item.frame || "";
-    document.querySelector("#player").showModal();
-    if (item.clip) {
-      loadClip(item.id).then((blob) => {
-        if (!blob) return;
-        clip.src = URL.createObjectURL(blob);
-        clip.hidden = false;
-        document.querySelector("#playerImg").hidden = true;
-        clip.play().catch(() => {});
-      });
-    }
+    openSavedCase(item);
   }
   if (target.dataset.ack) patchCase(caseId, { acked: true });
   if (target.dataset.confirm) patchCase(caseId, { status: "confirmed", acked: true });
