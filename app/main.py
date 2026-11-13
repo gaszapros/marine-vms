@@ -24,6 +24,7 @@ from contextlib import asynccontextmanager
 from app.config import MEDIA, ROOT, ensure_dirs
 from app import db
 from app.engine import engine
+from app.fleet_file import normalize_fleet, publish_working_tree, write_fleet
 from app.github_store import GithubError, materialize_clip, parse_ref, present_event
 from app.sources import KINDS
 
@@ -219,6 +220,21 @@ def scenario(name: str) -> dict:
     if name not in presets:
         raise HTTPException(404, "неизвестный режим")
     return db.set_telemetry(presets[name])
+
+
+@app.put("/api/fleet")
+def save_shared_fleet(body: dict) -> dict:
+    try:
+        fleet = normalize_fleet(body)
+    except (ValueError, TypeError) as exc:
+        raise HTTPException(400, str(exc)) from exc
+    write_fleet(ROOT / "static" / "fleet.json", fleet)
+    try:
+        publish_working_tree(ROOT)
+    except Exception as exc:
+        logger.exception("fleet publish failed")
+        raise HTTPException(409, "не удалось отправить список камер в проект") from exc
+    return fleet
 
 
 @app.get("/api/cameras")

@@ -1,0 +1,29 @@
+{
+  "view": "fleet",
+  "selected": "vessel-1",
+  "savedAt": 0,
+  "vessels": [
+    {
+      "id": "vessel-1",
+      "name": "SHIP Name",
+      "cameras": {
+        "port-bow": {
+          "src": "https://5b5d5bdb0d55e.streamlock.net/live/camera_ga-ports.stream/playlist.m3u8",
+          "place": "Порт Саванна"
+        },
+        "starboard-bow": {
+          "src": "https://5b8d2cbe62ad6.streamlock.net/live2/ptz52.stream/playlist.m3u8",
+          "place": "Харлинген, вход в порт"
+        },
+        "port-stern": {
+          "src": "https://584b389d712f9.streamlock.net/live/binnenhaven.stream/playlist.m3u8",
+          "place": "Харлинген, гавань"
+        },
+        "starboard-stern": {
+          "src": "https://584b389d712f9.streamlock.net/live/vt.stream/playlist.m3u8",
+          "place": "Харлинген, порт"
+        }
+      }
+    }
+  ]
+}

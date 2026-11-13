@@ -574,7 +574,15 @@ function blankVessel(name, id) {
   return { id: id || `vessel-${Date.now()}`, name: name || "SHIP Name", cameras };
 }
 
+let fleetMemory = null;
+let fleetPublishNote = "";
+
 function loadFleet() {
+  if (!fleetMemory) fleetMemory = readStoredFleet();
+  return fleetMemory;
+}
+
+function readStoredFleet() {
   const stored = loadJson(FLEET_KEY, null);
   const fleet = stored && Array.isArray(stored.vessels) && stored.vessels.length
     ? stored
@@ -614,7 +622,92 @@ function loadFleet() {
 }
 
 function saveFleet(fleet) {
+  fleetMemory = fleet;
   localStorage.setItem(FLEET_KEY, JSON.stringify(fleet));
+}
+
+function cameraKey(fleet) {
+  return fleet.vessels.map((vessel) => CAMERA_ROLES.map((role) => `${vessel.id}:${role.id}:${vessel.cameras[role.id].src}`).join("|")).join(";");
+}
+
+function fleetFormBusy() {
+  const el = document.activeElement;
+  return Boolean(el && el.closest && (el.closest("#vesselSlots") || el.closest("#addVessel")));
+}
+
+function publishFleet(fleet) {
+  fleet.savedAt = Date.now();
+  saveFleet(fleet);
+  fleetPublishNote = "Сохраняю ссылку в проект…";
+  publishFleetRequest(fleet);
+}
+
+async function publishFleetRequest(fleet) {
+  try {
+    const response = await fetch(url("/api/fleet"), {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(fleet),
+    });
+    if (response.ok) {
+      fleetPublishNote = "Ссылка сохранена для всех устройств.";
+      if (!fleetFormBusy()) renderFleet();
+      return;
+    }
+  } catch (error) {}
+  const link = fleetIssueUrl(fleet);
+  if (link.length > 7000) {
+    fleetPublishNote = "Список камер слишком большой для общего сохранения.";
+    if (!fleetFormBusy()) renderFleet();
+    return;
+  }
+  const opened = window.open(link, "_blank");
+  fleetPublishNote = opened
+    ? "На открывшейся странице GitHub нажмите «Создать». После этого ссылка откроется на других устройствах."
+    : "Разрешите окно GitHub и сохраните ещё раз.";
+  if (!fleetFormBusy()) renderFleet();
+}
+
+function fleetIssueUrl(fleet) {
+  const title = encodeURIComponent("marine-fleet-sync");
+  const body = encodeURIComponent(JSON.stringify(fleet));
+  return `https://github.com/gaszapros/marine-vms/issues/new?title=${title}&body=${body}`;
+}
+
+async function refreshSharedFleet() {
+  try {
+    const response = await fetch(`fleet.json?t=${Date.now()}`, { cache: "no-store" });
+    if (!response.ok) return;
+    const remote = await response.json();
+    if (!remote || !Array.isArray(remote.vessels) || !remote.vessels.length) return;
+    const local = loadFleet();
+    if (local.savedAt == null && cameraKey(local) !== cameraKey(remote)) {
+      local.savedAt = Date.now();
+      saveFleet(local);
+      fleetPublishNote = "Эта ссылка пока только в этом браузере. Нажмите «Сохранить потоки».";
+      if (!fleetFormBusy()) renderFleet();
+      return;
+    }
+    const remoteAt = Number(remote.savedAt) || 0;
+    const localAt = Number(local.savedAt) || 0;
+    if (remoteAt < localAt) return;
+    const changed = cameraKey(local) !== cameraKey(remote);
+    const waiting = fleetPublishNote.startsWith("На открывшейся") || fleetPublishNote.startsWith("Сохраняю");
+    if (!changed && remoteAt === localAt) {
+      if (waiting) {
+        fleetPublishNote = "Ссылка сохранена для всех устройств.";
+        if (!fleetFormBusy()) renderFleet();
+      }
+      return;
+    }
+    remote.view = local.view === "stand" ? "stand" : "fleet";
+    if (!remote.vessels.some((vessel) => vessel.id === local.selected)) remote.selected = remote.vessels[0].id;
+    else remote.selected = local.selected;
+    saveFleet(remote);
+    if (waiting) fleetPublishNote = "Ссылка сохранена для всех устройств.";
+    if (changed && publicMode && !fleetFormBusy()) showPublicCameras();
+    else if (waiting && !fleetFormBusy()) renderFleet();
+  } catch (error) {}
 }
 
 function vesselCameras(vessel) {
@@ -1541,7 +1634,7 @@ function renderFleet() {
   }
   form.innerHTML = CAMERA_ROLES.map((role) => `<label>${escapeHtml(role.title)}
       <input name="${role.id}" value="${escapeHtml(vessel.cameras[role.id].src)}" placeholder="HLS, YouTube, страница, MJPEG или rtsp://" />
-    </label>`).join("") + `<button type="submit">Сохранить потоки</button>`;
+    </label>`).join("") + `<button type="submit">Сохранить потоки</button>${fleetPublishNote ? `<p class="hint">${escapeHtml(fleetPublishNote)}</p>` : ""}`;
 }
 
 function showView(name) {
@@ -1666,7 +1759,7 @@ document.querySelector("#addVessel").addEventListener("submit", (event) => {
   fleet.vessels.push(vessel);
   fleet.selected = vessel.id;
   fleet.view = "fleet";
-  saveFleet(fleet);
+  publishFleet(fleet);
   event.target.reset();
   showPublicCameras();
 });
@@ -1684,7 +1777,7 @@ document.querySelector("#fleetList").addEventListener("click", (event) => {
     const id = target.dataset.dropVessel;
     fleet.vessels = fleet.vessels.filter((vessel) => vessel.id !== id);
     if (!fleet.vessels.some((vessel) => vessel.id === fleet.selected)) fleet.selected = fleet.vessels[0].id;
-    saveFleet(fleet);
+    publishFleet(fleet);
     const prefix = `${id}:`;
     saveRules(watchRules().filter((rule) => !String(rule.cameraId).startsWith(prefix)));
     showPublicCameras();
@@ -1700,7 +1793,7 @@ document.querySelector("#vesselSlots").addEventListener("submit", (event) => {
   for (const role of CAMERA_ROLES) {
     vessel.cameras[role.id].src = normalizeStreamInput(data.get(role.id));
   }
-  saveFleet(fleet);
+  publishFleet(fleet);
   showPublicCameras();
 });
 
@@ -2225,3 +2318,8 @@ paintClock();
 setInterval(paintClock, 1000);
 reloadConfig().catch(() => {}).finally(tick);
 setInterval(tick, 1500);
+refreshSharedFleet();
+setInterval(refreshSharedFleet, 15000);
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden) refreshSharedFleet();
+});
