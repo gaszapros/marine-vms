@@ -556,7 +556,12 @@ function loadFleet() {
   const fleet = stored && Array.isArray(stored.vessels) && stored.vessels.length
     ? stored
     : { view: "fleet", selected: "vessel-1", vessels: [blankVessel("Судно 1", "vessel-1")] };
+  let renamed = false;
   for (const vessel of fleet.vessels) {
+    if (vessel.name === "Азов") {
+      vessel.name = "SHIP Name";
+      renamed = true;
+    }
     vessel.cameras = vessel.cameras || {};
     for (const role of CAMERA_ROLES) {
       if (!vessel.cameras[role.id] || typeof vessel.cameras[role.id].src !== "string") {
@@ -566,6 +571,7 @@ function loadFleet() {
   }
   if (!fleet.vessels.some((vessel) => vessel.id === fleet.selected)) fleet.selected = fleet.vessels[0].id;
   if (fleet.view !== "stand") fleet.view = "fleet";
+  if (renamed) saveFleet(fleet);
   return fleet;
 }
 
