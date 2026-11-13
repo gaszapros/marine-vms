@@ -559,8 +559,8 @@ const PORT_SLOTS = {
     src: "https://584b389d712f9.streamlock.net/live/binnenhaven.stream/playlist.m3u8",
   },
   "starboard-stern": {
-    place: "Сосалито, гавань",
-    src: "https://stage-ams.srv.axds.co/stream/adaptive/cencoos/sausalito_galilee/hls.m3u8",
+    place: "Харлинген, порт",
+    src: "https://584b389d712f9.streamlock.net/live/vt.stream/playlist.m3u8",
   },
 };
 
@@ -599,7 +599,7 @@ function loadFleet() {
       if (!current || typeof current.src !== "string") {
         vessel.cameras[role.id] = demo ? { ...PORT_SLOTS[role.id] } : { src: "", place: "" };
         renamed = true;
-      } else if (demo && !src) {
+      } else if (demo && (!src || src.includes("sausalito_galilee") || src.includes("3diweorv2v1u5y63h") || current.place === "Сосалито, гавань" || current.place === "Порт Торредембарра")) {
         vessel.cameras[role.id] = { ...PORT_SLOTS[role.id] };
         renamed = true;
       } else if (typeof current.place !== "string") {
