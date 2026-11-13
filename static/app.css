@@ -105,9 +105,9 @@ a { color: var(--amber); }
   object-position: left center;
 }
 .sys {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.35rem;
+  display: grid;
+  grid-template-columns: auto auto;
+  gap: 0.28rem 0.35rem;
   flex: none;
 }
 .sys-pill {
@@ -191,10 +191,18 @@ a { color: var(--amber); }
 }
 .clocks {
   display: flex;
-  gap: 0.75rem;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.12rem;
   flex: none;
 }
-.clocks time { display: grid; justify-items: end; margin: 0; }
+.clocks time {
+  display: flex;
+  align-items: baseline;
+  justify-content: flex-end;
+  gap: 0.35rem;
+  margin: 0;
+}
 .clocks span {
   color: var(--muted);
   font-size: 0.62rem;
@@ -203,7 +211,7 @@ a { color: var(--amber); }
 .clocks b {
   font-family: var(--display);
   font-variant-numeric: tabular-nums;
-  font-size: 1.05rem;
+  font-size: 0.95rem;
   font-weight: 750;
   letter-spacing: 0.04em;
   line-height: 1.15;
@@ -219,9 +227,14 @@ a { color: var(--amber); }
 .light button {
   border: 0;
   background: transparent;
-  padding: 0.32rem 0.55rem;
+  width: 1.55rem;
+  height: 1.55rem;
+  padding: 0;
   border-radius: 6px;
+  display: grid;
+  place-items: center;
 }
+.light svg { width: 0.95rem; height: 0.95rem; display: block; }
 .light button[aria-pressed="true"] {
   background: var(--ink);
   color: var(--top);

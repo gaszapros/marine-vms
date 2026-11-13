@@ -1168,7 +1168,6 @@ function showPublicCameras() {
 function showView(name) {
   document.querySelector("#watch").hidden = name !== "watch";
   document.querySelector("#setup").hidden = name !== "setup";
-  document.querySelector("#showWatch").classList.toggle("on", name === "watch");
   document.querySelector("#showSetup").classList.toggle("on", name === "setup");
 }
 
@@ -1189,7 +1188,6 @@ cameraView.addEventListener("click", (event) => {
   if (event.target === cameraView) cameraView.close();
 });
 
-document.querySelector("#showWatch").addEventListener("click", () => showView("watch"));
 document.querySelector("#showSetup").addEventListener("click", () => showView("setup"));
 
 const DOCK_KEY = "marine-online-dock";
@@ -1430,13 +1428,6 @@ document.addEventListener("pointerdown", () => {
   if (audioCtx && audioCtx.state === "suspended") audioCtx.resume().catch(() => {});
 });
 
-const SHIP_MODES = {
-  alongside: "Стоянка",
-  maneuver: "Манёвр",
-  sea: "Ход",
-  manual: "Ручной",
-};
-
 function setPill(name, text, state) {
   const node = document.querySelector(`[data-sys="${name}"]`);
   if (!node) return;
@@ -1450,22 +1441,19 @@ function renderSystem(status) {
     const tiles = [...wall.querySelectorAll(".card")];
     const lost = tiles.filter((card) => (card.querySelector(".signal")?.textContent || "").includes("нет")).length;
     const live = Math.max(0, tiles.length - lost);
-    setPill("link", "Демо", "warn");
+    setPill("link", "Нет", "warn");
     setPill("watch", "Берег", "idle");
     setPill("cams", tiles.length ? `${live}/${tiles.length}` : "0", lost ? "bad" : tiles.length ? "ok" : "idle");
     setPill("rec", recorders.size ? String(recorders.size) : "0", recorders.size ? "warn" : "idle");
-    setPill("mode", "Демо", "idle");
     return;
   }
   const cams = (status.cameras || []).filter((cam) => cam.enabled);
   const lost = cams.filter((cam) => cam.error).length;
   const recording = cams.filter((cam) => cam.recording).length;
-  const mode = (status.telemetry && status.telemetry.mode) || "manual";
   setPill("link", "На связи", "ok");
   setPill("watch", status.armed ? "Принята" : "Снята", status.armed ? "ok" : "warn");
   setPill("cams", cams.length ? `${cams.length - lost}/${cams.length}` : "0", lost ? "bad" : cams.length ? "ok" : "idle");
   setPill("rec", recording ? String(recording) : "0", recording ? "warn" : "ok");
-  setPill("mode", SHIP_MODES[mode] || mode, "ok");
 }
 
 function renderAlarm() {

@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Marine Online</title>
-  <link rel="stylesheet" href="app.css?v=33" />
+  <link rel="stylesheet" href="app.css?v=34" />
   <script>
     try {
       if (localStorage.getItem("marine-light") === "night") document.documentElement.dataset.light = "night";
@@ -21,7 +21,6 @@
       <p class="sys-pill" data-sys="watch" data-state="idle"><span>Вахта</span><b>…</b></p>
       <p class="sys-pill" data-sys="cams" data-state="idle"><span>Камеры</span><b>…</b></p>
       <p class="sys-pill" data-sys="rec" data-state="idle"><span>Запись</span><b>…</b></p>
-      <p class="sys-pill" data-sys="mode" data-state="idle"><span>Режим</span><b>…</b></p>
     </div>
     <section class="alarm-zone" id="alarmZone" aria-label="Критические тревоги" aria-live="assertive">
       <p class="alarm-quiet">Критических тревог нет</p>
@@ -31,11 +30,14 @@
       <time id="clockLocal"><span>LOC</span><b>--:--:--</b></time>
     </div>
     <div class="light" role="group" aria-label="Освещённость">
-      <button type="button" id="lightDay" aria-pressed="true">День</button>
-      <button type="button" id="lightNight" aria-pressed="false">Ночь</button>
+      <button type="button" id="lightDay" aria-pressed="true" aria-label="День" title="День">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 2.5v2.2M12 19.3v2.2M4.8 4.8l1.6 1.6M17.6 17.6l1.6 1.6M2.5 12h2.2M19.3 12h2.2M4.8 19.2l1.6-1.6M17.6 6.4l1.6-1.6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      </button>
+      <button type="button" id="lightNight" aria-pressed="false" aria-label="Ночь" title="Ночь">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 14.5A8.5 8.5 0 1 1 9.5 3a7 7 0 0 0 11.5 11.5z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
+      </button>
     </div>
     <nav class="nav">
-      <button type="button" id="showWatch" class="on">Вахта</button>
       <button type="button" id="showSetup">Настройка</button>
     </nav>
   </header>
@@ -204,6 +206,6 @@
   </dialog>
   <script src="heavy.js?v=24"></script>
   <script src="hls.min.js?v=5"></script>
-  <script src="app.js?v=29"></script>
+  <script src="app.js?v=30"></script>
 </body>
 </html>
