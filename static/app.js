@@ -545,9 +545,32 @@ const CAMERA_ROLES = [
   { id: "starboard-stern", title: "Правый борт, корма" },
 ];
 
+const PORT_SLOTS = {
+  "port-bow": {
+    place: "Порт Саванна",
+    src: "https://5b5d5bdb0d55e.streamlock.net/live/camera_ga-ports.stream/playlist.m3u8",
+  },
+  "starboard-bow": {
+    place: "Харлинген, вход в порт",
+    src: "https://5b8d2cbe62ad6.streamlock.net/live2/ptz52.stream/playlist.m3u8",
+  },
+  "port-stern": {
+    place: "Харлинген, гавань",
+    src: "https://584b389d712f9.streamlock.net/live/binnenhaven.stream/playlist.m3u8",
+  },
+  "starboard-stern": {
+    place: "Сосалито, гавань",
+    src: "https://stage-ams.srv.axds.co/stream/adaptive/cencoos/sausalito_galilee/hls.m3u8",
+  },
+};
+
 function blankVessel(name, id) {
   const cameras = {};
-  for (const role of CAMERA_ROLES) cameras[role.id] = { src: "" };
+  const demo = (name || "SHIP Name") === "SHIP Name";
+  for (const role of CAMERA_ROLES) {
+    const slot = demo ? PORT_SLOTS[role.id] : null;
+    cameras[role.id] = { src: slot ? slot.src : "", place: slot ? slot.place : "" };
+  }
   return { id: id || `vessel-${Date.now()}`, name: name || "SHIP Name", cameras };
 }
 
@@ -569,9 +592,18 @@ function loadFleet() {
   }
   for (const vessel of fleet.vessels) {
     vessel.cameras = vessel.cameras || {};
+    const demo = vessel.name === "SHIP Name";
     for (const role of CAMERA_ROLES) {
-      if (!vessel.cameras[role.id] || typeof vessel.cameras[role.id].src !== "string") {
-        vessel.cameras[role.id] = { src: "" };
+      const current = vessel.cameras[role.id];
+      const src = current && typeof current.src === "string" ? current.src.trim() : "";
+      if (!current || typeof current.src !== "string") {
+        vessel.cameras[role.id] = demo ? { ...PORT_SLOTS[role.id] } : { src: "", place: "" };
+        renamed = true;
+      } else if (demo && !src) {
+        vessel.cameras[role.id] = { ...PORT_SLOTS[role.id] };
+        renamed = true;
+      } else if (typeof current.place !== "string") {
+        current.place = "";
       }
     }
   }
@@ -590,7 +622,7 @@ function vesselCameras(vessel) {
     id: `${vessel.id}:${role.id}`,
     role: role.id,
     name: role.title,
-    location: vessel.name,
+    location: vessel.cameras[role.id].place || vessel.name,
     src: vessel.cameras[role.id].src.trim(),
     vesselId: vessel.id,
   }));
