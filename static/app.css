@@ -536,49 +536,66 @@ body:not(.local) #builders { display: none; }
 }
 #queue.events::-webkit-scrollbar { display: none; }
 #queue.events.dragging { cursor: grabbing; scroll-snap-type: none; }
+.queue-bar .panel-head { flex-wrap: wrap; gap: 0.35rem 0.6rem; }
 #queue .case {
-  flex: 0 0 300px;
+  flex: 0 0 min(360px, 100%);
   scroll-snap-align: start;
   display: grid;
-  grid-template-columns: 112px minmax(0, 1fr);
+  grid-template-columns: 120px minmax(0, 1fr);
   grid-template-rows: auto auto;
-  align-content: center;
-  gap: 0.12rem 0.4rem;
-  padding: 0.22rem;
+  align-items: center;
+  gap: 0.28rem 0.55rem;
+  padding: 0.35rem;
   background: var(--field);
 }
 #queue .case img {
   grid-row: 1 / span 2;
-  width: 112px;
-  height: 63px;
+  width: 120px;
+  height: 78px;
   aspect-ratio: auto;
   object-fit: cover;
+  align-self: center;
 }
-#queue .case-copy { min-width: 0; grid-column: 2; grid-row: 1; }
+#queue .case-copy {
+  min-width: 0;
+  grid-column: 2;
+  grid-row: 1;
+  display: grid;
+  gap: 0.08rem;
+  align-content: center;
+}
 #queue .case .actions { grid-column: 2; grid-row: 2; }
 #queue .case strong {
-  font-size: 0.76rem;
+  font-size: 0.82rem;
   font-weight: 650;
-  line-height: 1.2;
+  line-height: 1.25;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-#queue .case small {
-  font-size: 0.68rem;
-  line-height: 1.2;
+#queue .case-cam,
+#queue .case-time,
+#queue .case-note {
+  display: block;
+  min-width: 0;
+  color: var(--muted);
+  font-size: 0.72rem;
+  line-height: 1.25;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
+#queue .case-time { font-variant-numeric: tabular-nums; }
 #queue .case .actions {
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.15rem;
+  flex-wrap: nowrap;
+  gap: 0.28rem;
 }
 #queue .case .actions button {
-  padding: 0.16rem 0.3rem;
-  font-size: 0.68rem;
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 0.28rem 0.35rem;
+  font-size: 0.74rem;
   line-height: 1.2;
   border-radius: 6px;
 }
@@ -702,7 +719,7 @@ dialog::backdrop { background: rgba(4, 8, 12, 0.78); }
   .stage-row.folded .dock-bar button,
   .stage-row.folded.settled .dock-bar button { writing-mode: horizontal-tb; transform: none; padding: 0.32rem 0.7rem; }
   .queue-bar { height: auto; }
-  #queue .case { flex-basis: 260px; }
+  #queue .case { flex-basis: min(340px, 100%); }
   .top { flex-wrap: wrap; }
   .brand,
   .top.dock-folded .brand { flex: 0 1 auto; width: auto; max-width: min(220px, 70vw); }
@@ -900,6 +917,20 @@ html[data-light="night"] .arm.off { background: #3a2024; color: #ffb4b4; }
   .top.is-compact .clocks b { font-size: 0.78rem; }
   .top.is-compact .light { align-self: center; }
   .top.is-compact .header-open { display: grid; align-self: center; }
+  .queue-bar { padding: 0.4rem 0.45rem 0.5rem; }
+  .queue-step { width: 1.55rem; }
+  #queue .case {
+    flex-basis: 100%;
+    grid-template-columns: 96px minmax(0, 1fr);
+    gap: 0.35rem 0.5rem;
+    padding: 0.4rem;
+  }
+  #queue .case img { width: 96px; height: 72px; }
+  #queue .case strong { font-size: 0.84rem; white-space: normal; }
+  #queue .case-cam,
+  #queue .case-time,
+  #queue .case-note { font-size: 0.74rem; white-space: normal; }
+  #queue .case .actions button { padding: 0.36rem 0.3rem; font-size: 0.76rem; }
 }
 @media (prefers-reduced-motion: reduce) {
   .top, .brand img, .top-tools, .sys, #clockLocal, .alarm-zone { transition: none; }

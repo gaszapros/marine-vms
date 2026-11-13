@@ -793,19 +793,20 @@ function renderPublicQueue() {
     const calling = item.status === "open" && !item.acked && openCalls.has(item.cameraId);
     const done = item.status !== "open";
     const label = item.status === "confirmed" ? "подтверждено" : item.status === "false" ? "ложная тревога" : "";
-    const meta = [item.cameraName, clock(item.at), item.clip ? "ролик" : "", label].filter(Boolean).join(" · ");
+    const note = [item.clip ? "ролик" : "", label].filter(Boolean).join(" · ");
     return `<article class="event case${calling ? " calling" : ""}${done ? " done" : ""}">
       <img src="${item.frame || "data:image/gif;base64,R0lGODlhAQABAAAAACw="}" alt="" />
-      <div class="case-copy">
-        <strong>${item.ruleName}</strong>
-        <small>${meta}</small>
-      </div>
-      <span class="actions">
-        <button type="button" data-open-case="${item.id}">Открыть</button>
-        ${item.status === "open" && !item.acked ? `<button type="button" data-ack="${item.id}">Принял</button>` : ""}
-        <button type="button" data-open-folder="${item.id}" data-folder-kind="case" title="Скачать запись этой карточки">Папка</button>
-        ${item.status === "open" ? `<button type="button" data-false="${item.id}" title="Ложная тревога">Ложная</button>` : ""}
-      </span>
+        <div class="case-copy">
+          <strong>${item.ruleName}</strong>
+          <span class="case-cam">${item.cameraName}</span>
+          <time class="case-time">${clock(item.at)}</time>
+          ${note ? `<span class="case-note">${note}</span>` : ""}
+        </div>
+        <span class="actions">
+          <button type="button" data-open-case="${item.id}">Открыть</button>
+          ${item.status === "open" && !item.acked ? `<button type="button" data-ack="${item.id}">Принял</button>` : ""}
+          <button type="button" data-open-folder="${item.id}" data-folder-kind="case" title="Скачать запись этой карточки">Папка</button>
+        </span>
     </article>`;
   }).join("");
   renderAlarm();
@@ -833,18 +834,20 @@ function renderLocalQueue(items) {
     const calling = wasReady && !mark && fresh.some((item) => item.id === event.id);
     const done = mark === "confirmed" || mark === "false";
     const label = mark === "confirmed" ? "подтверждено" : mark === "false" ? "ложная тревога" : "";
-    const meta = [event.camera_name, event.started_at, label].filter(Boolean).join(" · ");
+    const when = clock(event.started_at);
+    const note = [label].filter(Boolean).join(" · ");
     return `<article class="event case${calling ? " calling" : ""}${done ? " done" : ""}">
       <img src="${url(`/api/events/${event.id}/thumb`)}" alt="" />
       <div class="case-copy">
         <strong>${event.rule_name}</strong>
-        <small>${meta}</small>
+        <span class="case-cam">${event.camera_name}</span>
+        <time class="case-time">${when}</time>
+        ${note ? `<span class="case-note">${note}</span>` : ""}
       </div>
       <span class="actions">
         <button type="button" data-play="${event.id}">Открыть</button>
         ${!mark ? `<button type="button" data-ack-event="${event.id}">Принял</button>` : ""}
         <button type="button" data-open-folder="${event.id}" data-folder-kind="event" title="Открыть файл этой записи">Папка</button>
-        ${!done ? `<button type="button" data-false-event="${event.id}" title="Ложная тревога">Ложная</button>` : ""}
       </span>
     </article>`;
   }).join("");
