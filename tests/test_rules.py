@@ -4,7 +4,7 @@ from datetime import datetime
 import numpy as np
 
 from app.rules import evaluate_rule, mask_ratio, schedule_matches, speed_matches
-from app.vehicles import keep_heavy
+from app.vehicles import freight_size, keep_freight
 
 
 class ScheduleTests(unittest.TestCase):
@@ -50,17 +50,23 @@ class ScheduleTests(unittest.TestCase):
         fired_any, _ = evaluate_rule(rule, ctx, [])
         self.assertFalse(fired_any)
 
-    def test_keep_heavy_skips_passenger_cars(self):
+    def test_keep_freight_skips_cars_and_buses(self):
         rows = np.array(
             [
                 [10, 20, 40, 30, 0.9, 2],
                 [100, 80, 50, 40, 0.8, 7],
                 [0, 0, 620, 340, 0.95, 5],
+                [200, 90, 20, 16, 0.9, 7],
             ],
             np.float32,
         )
-        marks = keep_heavy(rows, (360, 640), 1.0)
-        self.assertEqual(marks, [(100, 80, 50, 40, "грузовик")])
+        marks = keep_freight(rows, (360, 640), 1.0)
+        self.assertEqual(marks, [(100, 80, 50, 40, "грузовой")])
+
+    def test_freight_size_uses_camera_scale(self):
+        self.assertFalse(freight_size(40, 36, 640, 360, (30, 28)))
+        self.assertTrue(freight_size(50, 70, 640, 360, (30, 28)))
+        self.assertFalse(freight_size(18, 16, 640, 360, None))
 
     def test_zone_ratio(self):
         mask = np.zeros((100, 100), np.uint8)

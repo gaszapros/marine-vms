@@ -1,9 +1,13 @@
-/* Камера подсвечивается, когда в кадре автобус или грузовик. Квадратов нет, запись не идёт. */
+/* Камера подсвечивается, когда в кадре грузовой транспорт. Размер сверяется с масштабом этой камеры. */
 window.HeavyWatch = (() => {
   const INPUT = 640;
-  const CONFIDENCE = 0.4;
-  const LABELS = { 5: true, 7: true };
+  const CONFIDENCE = 0.5;
+  const CAR = 2;
+  const BUS = 5;
+  const TRUCK = 7;
+  const BINS = 8;
   const anchors = buildAnchors();
+  const profiles = new Map();
   let pixels = null;
 
   function sheet() {
@@ -112,14 +116,54 @@ window.HeavyWatch = (() => {
     return union <= 0 ? 0 : inter / union;
   }
 
-  function countHeavy(output, sample) {
+  function profileFor(cameraId) {
+    const key = cameraId || "camera";
+    let bins = profiles.get(key);
+    if (!bins) {
+      bins = Array.from({ length: BINS }, () => []);
+      profiles.set(key, bins);
+    }
+    return bins;
+  }
+
+  function rememberCar(profile, yFrac, box) {
+    const index = Math.min(BINS - 1, Math.max(0, Math.floor(yFrac * BINS)));
+    const bin = profile[index];
+    bin.push({ h: box.h, w: box.w });
+    if (bin.length > 12) bin.shift();
+  }
+
+  function carScale(profile, yFrac) {
+    const index = Math.min(BINS - 1, Math.max(0, Math.floor(yFrac * BINS)));
+    const samples = [];
+    for (const shift of [-1, 0, 1]) {
+      const bin = profile[index + shift];
+      if (bin) samples.push(...bin);
+    }
+    if (samples.length < 4) return null;
+    const heights = samples.map((item) => item.h).sort((left, right) => left - right);
+    const widths = samples.map((item) => item.w).sort((left, right) => left - right);
+    const mid = Math.floor((heights.length - 1) * 0.35);
+    return { h: heights[mid], w: widths[mid] };
+  }
+
+  function freightSize(box, sample, profile) {
+    const yFrac = (box.y + box.h / 2) / sample.height;
+    const car = carScale(profile, yFrac);
+    if (car) {
+      return box.h >= car.h * 1.55 && box.h <= car.h * 3.2 && box.w >= car.w * 1.2 && box.w <= car.w * 4.2;
+    }
+    const heightFrac = box.h / sample.height;
+    const widthFrac = box.w / sample.width;
+    return heightFrac >= 0.08 && heightFrac <= 0.5 && widthFrac >= 0.045 && widthFrac <= 0.55;
+  }
+
+  function countFreight(output, sample, cameraId) {
     const data = output.data;
     const count = output.dims[1];
     const widthOut = output.dims[2];
+    const profile = profileFor(cameraId);
     const found = [];
-    const confidence = sample.small ? 0.2 : CONFIDENCE;
-    const minW = sample.small ? 8 : 16;
-    const minH = sample.small ? 8 : 14;
     for (let i = 0; i < count; i += 1) {
       const base = i * widthOut;
       const objectness = data[base + 4];
@@ -133,7 +177,6 @@ window.HeavyWatch = (() => {
           best = cls;
         }
       }
-      if (!LABELS[best] || score < confidence) continue;
       const centerX = (data[base] + anchors.gx[i]) * anchors.step[i];
       const centerY = (data[base + 1] + anchors.gy[i]) * anchors.step[i];
       const boxW = Math.exp(data[base + 2]) * anchors.step[i];
@@ -145,8 +188,18 @@ window.HeavyWatch = (() => {
         h: boxH / sample.scaleY,
         score,
       };
-      if (box.w < minW || box.h < minH) continue;
       if (box.w > sample.width * 0.92 && box.h > sample.height * 0.92) continue;
+      const yFrac = (box.y + box.h / 2) / sample.height;
+      const heightFrac = box.h / sample.height;
+      if (best === CAR && score >= 0.45 && heightFrac >= 0.02 && heightFrac <= 0.4) {
+        rememberCar(profile, yFrac, box);
+        continue;
+      }
+      const truck = objectness * data[base + 5 + TRUCK];
+      const car = objectness * data[base + 5 + CAR];
+      const bus = objectness * data[base + 5 + BUS];
+      if (best !== TRUCK || truck < CONFIDENCE || truck < car + 0.06 || truck < bus) continue;
+      if (!freightSize(box, sample, profile)) continue;
       found.push(box);
     }
     found.sort((left, right) => right.score - left.score);
@@ -158,7 +211,7 @@ window.HeavyWatch = (() => {
     return kept.length;
   }
 
-  function detect(video) {
+  function detect(video, cameraId) {
     if (video.readyState < 2 || !video.videoWidth) return Promise.resolve(0);
     const sample = letterbox(video);
     const id = job + 1;
@@ -171,7 +224,7 @@ window.HeavyWatch = (() => {
           reject(new Error(event.data.message));
           return;
         }
-        resolve(countHeavy({ data: event.data.data, dims: event.data.dims }, sample));
+        resolve(countFreight({ data: event.data.data, dims: event.data.dims }, sample, cameraId));
       };
       ready.addEventListener("message", onMessage);
       ready.postMessage({ type: "run", id, input: sample.input }, [sample.input.buffer]);
@@ -208,7 +261,7 @@ window.HeavyWatch = (() => {
       index += 1;
       if (entry.video.readyState >= 2) {
         try {
-          const count = await detect(entry.video);
+          const count = await detect(entry.video, entry.cameraId);
           if (token !== generation) return;
           const now = performance.now();
           if (count > 0) entry.seen = now;

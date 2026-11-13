@@ -154,7 +154,7 @@ function conditionRow(cond = { type: "motion", min_ratio: 0.02 }) {
         <option value="schedule">Расписание</option>
         <option value="armed">Вахта принята</option>
         <option value="color">Красный автомобиль</option>
-        <option value="heavy">Не легковой: подсветка камеры</option>
+        <option value="heavy">Грузовой транспорт: подсветка камеры</option>
       </select>
     </label>
     <div class="fields"></div>
@@ -199,7 +199,7 @@ function conditionRow(cond = { type: "motion", min_ratio: 0.02 }) {
         </div>
         <p class="hint">Стоп-сигнал и светофор не считаются: нужно движущееся красное пятно размером с кузов.</p>`;
     } else if (type === "heavy") {
-      fields.innerHTML = `<p class="hint">Когда в кадре автобус или грузовик, карточка камеры подсвечивается красным. Легковые не считаются. Запись не начинается.</p>`;
+      fields.innerHTML = `<p class="hint">Когда в кадре грузовой транспорт, карточка камеры подсвечивается красным. Легковые и автобусы не считаются: размер сверяется с масштабом этой камеры. Запись на судовом компьютере не начинается.</p>`;
     } else if (type === "schedule") {
       fields.innerHTML = `
         <label>С <input class="start" type="time" value="${cond.start || "18:00"}" /></label>
@@ -540,7 +540,7 @@ function allPublicCameras() {
 function blankCondition(cameraId, id) {
   return {
     id: id || `cond-${Date.now()}`,
-    name: "Не легковой автомобиль",
+    name: "Грузовой транспорт",
     cameraId,
     when: "heavy",
     enabled: true,
@@ -570,16 +570,23 @@ function watchRules() {
   }
   let changed = false;
   const rules = stored.map((rule) => {
-    if (rule && rule.id && rule.when) return rule;
-    changed = true;
-    return {
-      id: `cond-${rule.cameraId || "x"}`,
-      name: rule.name || "Не легковой автомобиль",
-      cameraId: rule.cameraId,
-      when: "heavy",
-      enabled: rule.enabled !== false,
-      record: rule.mode === "call",
-    };
+    let next = rule;
+    if (!(rule && rule.id && rule.when)) {
+      changed = true;
+      next = {
+        id: `cond-${rule.cameraId || "x"}`,
+        name: rule.name || "Грузовой транспорт",
+        cameraId: rule.cameraId,
+        when: "heavy",
+        enabled: rule.enabled !== false,
+        record: rule.mode === "call",
+      };
+    }
+    if (next && next.name === "Не легковой автомобиль") {
+      next = { ...next, name: "Грузовой транспорт" };
+      changed = true;
+    }
+    return next;
   }).filter((rule) => rule && rule.cameraId);
   for (const cam of allPublicCameras()) {
     if (seeded.has(cam.id)) continue;
@@ -603,7 +610,15 @@ function saveRules(items) {
 
 function watchCases() {
   const items = loadJson(CASE_KEY, []);
-  return Array.isArray(items) ? items : [];
+  if (!Array.isArray(items)) return [];
+  let changed = false;
+  const next = items.map((item) => {
+    if (!item || item.ruleName !== "Не легковой автомобиль") return item;
+    changed = true;
+    return { ...item, ruleName: "Грузовой транспорт" };
+  });
+  if (changed) saveCases(next);
+  return next;
 }
 
 function saveCases(items) {
@@ -1209,6 +1224,7 @@ function showPublicCameras() {
     const video = card.querySelector("video");
     attachStream(video, cam.src);
     watches.push({
+      cameraId: cam.id,
       video,
       live() {
         return watchRules().some((rule) => rule.cameraId === cam.id && rule.enabled && rule.when === "heavy");

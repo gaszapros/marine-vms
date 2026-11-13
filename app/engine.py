@@ -284,7 +284,7 @@ class Engine:
             if runtime.heavy_at <= 0:
                 runtime.heavy_at = now - (0.0 if cam["id"] % 2 == 0 else 0.35)
             if now - runtime.heavy_at >= 0.7:
-                runtime.heavy_boxes = finder.find(frame)
+                runtime.heavy_boxes = finder.find(frame, cam["id"])
                 runtime.heavy_at = now
         else:
             runtime.heavy_boxes = []
@@ -348,7 +348,7 @@ class Engine:
             if runtime.watch_color:
                 line += f"  ·  красный {runtime.color_ratio * 100:.1f}%"
             if runtime.watch_heavy and runtime.heavy_count:
-                line += "  ·  не легковой в кадре"
+                line += "  ·  грузовой транспорт в кадре"
             lines.append(line)
         return lines
 

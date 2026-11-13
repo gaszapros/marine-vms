@@ -84,7 +84,7 @@ def eval_condition(cond: dict, ctx: dict[str, Any]) -> tuple[bool, str]:
         where = "в зоне" if cond.get("zone") else "в кадре"
         return met, f"красный автомобиль {ratio * 100:.1f}% {where}, порог {need * 100:.1f}%"
     if kind == "heavy":
-        return False, "не легковые: только показ, без записи"
+        return False, "грузовой транспорт: только показ, без записи"
     return False, f"неизвестное условие {kind}"
 
 
