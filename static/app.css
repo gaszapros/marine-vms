@@ -436,7 +436,7 @@ body:not(.local) #builders { display: none; }
   max-width: 100%;
   background: #000;
 }
-.stage video, .stage img, .stage canvas {
+.stage video, .stage img, .stage iframe, .stage canvas {
   position: absolute;
   inset: 0;
   width: 100%;
@@ -456,6 +456,13 @@ body:not(.local) #builders { display: none; }
   object-fit: cover;
   background: #000;
   display: block;
+}
+.stage iframe { border: 0; }
+.stage .open-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: transparent;
 }
 .stage canvas {
   object-fit: fill;
@@ -719,7 +726,7 @@ dialog::backdrop { background: rgba(4, 8, 12, 0.78); }
   padding: 0.75rem 0.85rem 0.95rem;
 }
 #cameraView header { margin-bottom: 0.65rem; }
-#cameraView video, #cameraView img {
+#cameraView video, #cameraView img, #cameraView iframe {
   width: 100%;
   max-height: min(78vh, 820px);
   object-fit: contain;

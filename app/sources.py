@@ -1,4 +1,4 @@
-"""Источники кадров: имитатор судовых камер, файл, веб-камера, RTSP."""
+"""Источники кадров: имитатор судовых камер, файл, веб-камера, RTSP, ссылка HLS или MJPEG."""
 
 from __future__ import annotations
 
@@ -163,6 +163,6 @@ def open_source(source_type: str, source_uri: str) -> FrameSource:
         return SyntheticSource(source_uri or "bridge")
     if source_type == "file":
         return CaptureSource(source_uri, loop=True)
-    if source_type in ("webcam", "rtsp"):
+    if source_type in ("webcam", "rtsp", "http"):
         return CaptureSource(source_uri or "0", loop=False)
     return SyntheticSource("bridge")

@@ -60,7 +60,7 @@ class ArmIn(BaseModel):
 class CameraIn(BaseModel):
     name: str = Field(min_length=1, max_length=80)
     location: str = ""
-    source_type: Literal["synthetic", "file", "webcam", "rtsp"]
+    source_type: Literal["synthetic", "file", "webcam", "rtsp", "http"]
     source_uri: str = ""
     enabled: bool = True
     fps: float = Field(default=8, ge=1, le=25)

@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Marine Online</title>
-  <link rel="stylesheet" href="app.css?v=44" />
+  <link rel="stylesheet" href="app.css?v=45" />
   <script>
     try {
       if (localStorage.getItem("marine-light") === "night") document.documentElement.dataset.light = "night";
@@ -57,7 +57,7 @@
       <div id="dockBody">
       <div id="fleetBlock">
         <h2>Флот</h2>
-        <p class="hint">У судна четыре камеры: левый и правый борт, нос и корма. Поток вписывается в свою ячейку.</p>
+        <p class="hint">У судна четыре камеры: левый и правый борт, нос и корма. В ячейку идёт HLS, файл mp4 или webm, поток MJPEG, снимок, YouTube, страница плеера или rtsp://.</p>
         <ul id="fleetList" class="plain"></ul>
         <form id="addVessel" class="stack">
           <label>Судно <input name="name" required placeholder="Название судна" /></label>
@@ -74,7 +74,7 @@
       <form id="addCamera" class="stack">
         <label>Название <input name="name" required placeholder="Палуба" /></label>
         <label>Место <input name="location" placeholder="где стоит" /></label>
-        <label>Адрес потока <input name="src" required placeholder="https://…/playlist.m3u8" /></label>
+        <label>Адрес потока <input name="src" required placeholder="HLS, YouTube, страница, MJPEG или rtsp://" /></label>
         <button type="submit">Подключить</button>
       </form>
       <ul id="extraList" class="plain"></ul>
@@ -155,12 +155,13 @@
             <select name="source_type">
               <option value="synthetic">Имитатор судна</option>
               <option value="rtsp">RTSP</option>
+              <option value="http">Ссылка HLS, MJPEG или файл</option>
               <option value="webcam">Веб-камера</option>
               <option value="file">Видеофайл</option>
             </select>
           </label>
           <label>Адрес или сцена
-            <input name="source_uri" placeholder="bridge / rtsp://… / 0 / C:\video.mp4" />
+            <input name="source_uri" placeholder="bridge / rtsp://… / https://…m3u8 / 0 / C:\video.mp4" />
           </label>
           <label class="check"><input name="enabled" type="checkbox" checked /> включена</label>
           <div class="row">
@@ -210,6 +211,7 @@
       </header>
       <video id="cameraViewVideo" hidden muted autoplay playsinline></video>
       <img id="cameraViewImg" hidden alt="" />
+      <iframe id="cameraViewFrame" hidden title="Камера" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" referrerpolicy="strict-origin-when-cross-origin"></iframe>
     </form>
   </dialog>
   <dialog id="player">
@@ -225,6 +227,6 @@
   </dialog>
   <script src="heavy.js?v=27"></script>
   <script src="hls.min.js?v=5"></script>
-  <script src="app.js?v=50"></script>
+  <script src="app.js?v=51"></script>
 </body>
 </html>

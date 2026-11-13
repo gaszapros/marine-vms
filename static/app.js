@@ -1257,12 +1257,74 @@ function closeZoom() {
   }
   const video = document.querySelector("#cameraViewVideo");
   const img = document.querySelector("#cameraViewImg");
+  const frame = document.querySelector("#cameraViewFrame");
   video.pause();
   video.removeAttribute("src");
   video.load();
   video.hidden = true;
   img.removeAttribute("src");
   img.hidden = true;
+  frame.hidden = true;
+  frame.removeAttribute("src");
+}
+
+function normalizeStreamInput(raw) {
+  const text = String(raw || "").trim();
+  const iframe = text.match(/<iframe\b[^>]*\bsrc=["']([^"']+)["']/i);
+  if (iframe) return iframe[1].trim();
+  if (text.startsWith("<")) {
+    const found = text.match(/https?:\/\/[^\s"'<>]+/i) || text.match(/rtsps?:\/\/[^\s"'<>]+/i);
+    if (found) return found[0];
+  }
+  return text;
+}
+
+function youtubeId(src) {
+  try {
+    const url = new URL(src);
+    const host = url.hostname.replace(/^www\./, "");
+    if (host === "youtu.be") return url.pathname.split("/").filter(Boolean)[0] || "";
+    if (host === "youtube.com" || host === "youtube-nocookie.com" || host.endsWith(".youtube.com")) {
+      if (url.pathname === "/watch") return url.searchParams.get("v") || "";
+      const parts = url.pathname.split("/").filter(Boolean);
+      if (["embed", "live", "shorts", "v"].includes(parts[0])) return parts[1] || "";
+    }
+  } catch (error) {
+    return "";
+  }
+  return "";
+}
+
+function classifyStream(raw) {
+  const src = normalizeStreamInput(raw);
+  if (!src) return { kind: "empty", src: "" };
+  if (/^rtsps?:\/\//i.test(src)) return { kind: "rtsp", src };
+  const videoId = youtubeId(src);
+  if (videoId) {
+    return {
+      kind: "youtube",
+      src,
+      play: `https://www.youtube-nocookie.com/embed/${encodeURIComponent(videoId)}?autoplay=1&mute=1&playsinline=1&rel=0&modestbranding=1`,
+    };
+  }
+  const path = src.split("?")[0].split("#")[0].toLowerCase();
+  if (path.includes(".m3u8")) return { kind: "hls", src };
+  if (/\.(mp4|webm|ogg|mov|m4v)$/.test(path)) return { kind: "file", src };
+  if (/\.(mjpg|mjpeg)$/.test(path) || /mjpg|mjpeg|axis-cgi\/mjpg/i.test(src)) return { kind: "mjpeg", src };
+  if (/\.(jpe?g|png|gif|webp|bmp)$/.test(path)) return { kind: "image", src };
+  if (/^https?:\/\//i.test(src)) return { kind: "page", src, play: src };
+  return { kind: "file", src };
+}
+
+function cacheBust(src) {
+  return `${src}${src.includes("?") ? "&" : "?"}_=${Date.now()}`;
+}
+
+function shipSourceType(src) {
+  const kind = classifyStream(src).kind;
+  if (kind === "file") return "file";
+  if (kind === "hls" || kind === "mjpeg" || kind === "image" || kind === "page" || kind === "youtube") return "http";
+  return "rtsp";
 }
 
 function openCamera(card) {
@@ -1278,34 +1340,38 @@ function openCamera(card) {
   document.querySelector("#cameraViewTitle").textContent = name;
   const video = document.querySelector("#cameraViewVideo");
   const img = document.querySelector("#cameraViewImg");
-  if (card.dataset.kind === "mjpeg") {
+  const frame = document.querySelector("#cameraViewFrame");
+  const kind = card.dataset.kind;
+  if (kind === "mjpeg" || kind === "image") {
     img.hidden = false;
     img.alt = name;
-    img.src = src;
+    img.src = kind === "image" ? cacheBust(src) : src;
+  } else if (kind === "youtube" || kind === "page") {
+    frame.hidden = false;
+    frame.title = name;
+    frame.src = src;
+  } else if (kind === "file" || !(window.Hls && Hls.isSupported())) {
+    video.hidden = false;
+    video.muted = true;
+    video.src = src;
+    video.play().catch(() => {});
   } else {
     video.hidden = false;
     video.muted = true;
-    if (window.Hls && Hls.isSupported()) {
-      zoomPlayer = new Hls();
-      zoomPlayer.loadSource(src);
-      zoomPlayer.attachMedia(video);
-      zoomPlayer.on(Hls.Events.MANIFEST_PARSED, () => video.play().catch(() => {}));
-    } else {
-      video.src = src;
-      video.play().catch(() => {});
-    }
+    zoomPlayer = new Hls();
+    zoomPlayer.loadSource(src);
+    zoomPlayer.attachMedia(video);
+    zoomPlayer.on(Hls.Events.MANIFEST_PARSED, () => video.play().catch(() => {}));
   }
   document.querySelector("#cameraView").showModal();
 }
 
-function attachStream(video, src) {
+function attachStream(video, src, onSignal) {
   video.muted = true;
   video.autoplay = true;
   video.playsInline = true;
   const mark = (text) => {
-    if (text !== "нет сигнала") return;
-    const note = video.closest(".card") && video.closest(".card").querySelector(".signal");
-    if (note) note.textContent = text;
+    if (onSignal) onSignal(text);
   };
   if (window.Hls && Hls.isSupported()) {
     const player = new Hls();
@@ -1324,6 +1390,54 @@ function attachStream(video, src) {
   video.src = src;
   video.addEventListener("error", () => mark("нет сигнала"));
   video.play().then(() => mark("идёт")).catch(() => mark("нет сигнала"));
+}
+
+function mountStream(stage, stream, onSignal) {
+  const mark = (text) => {
+    if (onSignal) onSignal(text);
+  };
+  if (stream.kind === "hls" || stream.kind === "file") {
+    const video = document.createElement("video");
+    video.muted = true;
+    video.autoplay = true;
+    video.playsInline = true;
+    stage.appendChild(video);
+    if (stream.kind === "hls") attachStream(video, stream.src, mark);
+    else {
+      video.src = stream.src;
+      video.addEventListener("playing", () => mark("идёт"));
+      video.addEventListener("error", () => mark("нет сигнала"));
+      video.play().catch(() => {});
+    }
+    return { video };
+  }
+  if (stream.kind === "mjpeg" || stream.kind === "image") {
+    const img = document.createElement("img");
+    img.alt = "";
+    stage.appendChild(img);
+    const paint = () => {
+      img.src = stream.kind === "image" ? cacheBust(stream.src) : stream.src;
+    };
+    img.addEventListener("load", () => mark("идёт"));
+    img.addEventListener("error", () => mark("нет сигнала"));
+    paint();
+    if (stream.kind === "image") {
+      const timer = setInterval(paint, 2000);
+      publicPlayers.push({ destroy() { clearInterval(timer); } });
+    }
+    return { video: null };
+  }
+  const frame = document.createElement("iframe");
+  frame.src = stream.play || stream.src;
+  frame.title = "Камера";
+  frame.allow = "autoplay; encrypted-media; picture-in-picture; fullscreen";
+  frame.referrerPolicy = "strict-origin-when-cross-origin";
+  frame.addEventListener("load", () => mark("идёт"));
+  stage.appendChild(frame);
+  const layer = document.createElement("div");
+  layer.className = "open-layer";
+  stage.appendChild(layer);
+  return { video: null };
 }
 
 function showPublicCameras() {
@@ -1352,15 +1466,32 @@ function showPublicCameras() {
       wall.appendChild(card);
       continue;
     }
-    card.innerHTML = `<div class="stage"><video muted autoplay playsinline></video></div>${header}`;
-    card.dataset.kind = "hls";
-    card.dataset.stream = cam.src;
+    const stream = classifyStream(cam.src);
+    card.dataset.kind = stream.kind;
+    card.dataset.stream = stream.play || stream.src;
+    if (stream.kind === "rtsp") {
+      card.classList.add("slot-wait");
+      card.innerHTML = `<div class="stage slot-empty"><p>RTSP открывается на судовом компьютере</p></div>${header}`;
+      markCameraCard(card, cam.name);
+      card.setAttribute("aria-label", `RTSP, судовой компьютер: ${cam.name}`);
+      const place = card.querySelector(".place");
+      if (place) place.textContent = cam.location || "";
+      const signal = card.querySelector(".signal");
+      if (signal) signal.textContent = "судовой компьютер";
+      wall.appendChild(card);
+      continue;
+    }
+    card.innerHTML = `<div class="stage"></div>${header}`;
     markCameraCard(card, cam.name);
     const place = card.querySelector(".place");
     if (place) place.textContent = cam.location || "";
     wall.appendChild(card);
-    const video = card.querySelector("video");
-    attachStream(video, cam.src);
+    const signal = card.querySelector(".signal");
+    const mounted = mountStream(card.querySelector(".stage"), stream, (text) => {
+      if (signal) signal.textContent = text;
+    });
+    if (!mounted.video) continue;
+    const video = mounted.video;
     watches.push({
       cameraId: cam.id,
       video,
@@ -1409,7 +1540,7 @@ function renderFleet() {
     return;
   }
   form.innerHTML = CAMERA_ROLES.map((role) => `<label>${escapeHtml(role.title)}
-      <input name="${role.id}" value="${escapeHtml(vessel.cameras[role.id].src)}" placeholder="https://…/playlist.m3u8" />
+      <input name="${role.id}" value="${escapeHtml(vessel.cameras[role.id].src)}" placeholder="HLS, YouTube, страница, MJPEG или rtsp://" />
     </label>`).join("") + `<button type="submit">Сохранить потоки</button>`;
 }
 
@@ -1567,7 +1698,7 @@ document.querySelector("#vesselSlots").addEventListener("submit", (event) => {
   if (!vessel) return;
   const data = new FormData(event.target);
   for (const role of CAMERA_ROLES) {
-    vessel.cameras[role.id].src = String(data.get(role.id) || "").trim();
+    vessel.cameras[role.id].src = normalizeStreamInput(data.get(role.id));
   }
   saveFleet(fleet);
   showPublicCameras();
@@ -1592,9 +1723,9 @@ document.querySelector("#addCamera").addEventListener("submit", async (event) =>
   const form = event.target;
   const data = Object.fromEntries(new FormData(form));
   const name = data.name.trim();
-  const src = data.src.trim();
+  const src = normalizeStreamInput(data.src);
   const field = form.querySelector("[name=src]");
-  const ok = /^https?:\/\//i.test(src) || /^rtsp:\/\//i.test(src);
+  const ok = /^https?:\/\//i.test(src) || /^rtsps?:\/\//i.test(src);
   field.setCustomValidity(ok ? "" : "Нужен адрес http, https или rtsp");
   if (!field.reportValidity()) return;
   if (document.body.classList.contains("local")) {
@@ -1605,7 +1736,7 @@ document.querySelector("#addCamera").addEventListener("submit", async (event) =>
         body: JSON.stringify({
           name,
           location: (data.location || "").trim(),
-          source_type: "rtsp",
+          source_type: shipSourceType(src),
           source_uri: src,
           enabled: true,
           fps: 8,
