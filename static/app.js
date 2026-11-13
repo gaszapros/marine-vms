@@ -1525,16 +1525,131 @@ function paintClock() {
 
 const topBar = document.querySelector(".top");
 const watchPane = document.querySelector("#watch");
+const expandHeaderBtn = document.querySelector("#expandHeader");
 const phoneQuery = window.matchMedia("(max-width: 720px)");
+const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+const FOLD_MS = 380;
+let headerPin = false;
+let headerPinAt = 0;
+let headerPhase = "open";
+let foldTimer = 0;
+
+function syncExpandButton() {
+  if (!expandHeaderBtn || !topBar) return;
+  const folded = topBar.classList.contains("is-compact") || topBar.classList.contains("is-folding");
+  expandHeaderBtn.setAttribute("aria-expanded", folded ? "false" : "true");
+}
+
+function flipHeader(change) {
+  if (!topBar || reduceMotion.matches) {
+    change();
+    return;
+  }
+  const from = topBar.getBoundingClientRect().height;
+  topBar.style.overflow = "hidden";
+  topBar.style.height = from + "px";
+  change();
+  topBar.style.height = "auto";
+  const to = topBar.getBoundingClientRect().height;
+  topBar.style.height = from + "px";
+  if (Math.abs(from - to) < 2) {
+    topBar.style.height = "";
+    topBar.style.overflow = "";
+    return;
+  }
+  void topBar.offsetHeight;
+  requestAnimationFrame(() => {
+    topBar.style.transition = "height .34s ease";
+    topBar.style.height = to + "px";
+  });
+  let settled = false;
+  const done = (event) => {
+    if (settled) return;
+    if (event && (event.target !== topBar || event.propertyName !== "height")) return;
+    settled = true;
+    topBar.style.height = "";
+    topBar.style.transition = "";
+    topBar.style.overflow = "";
+    topBar.removeEventListener("transitionend", done);
+  };
+  topBar.addEventListener("transitionend", done);
+  setTimeout(done, 420);
+}
+
+function finishFold(event) {
+  const sys = topBar && topBar.querySelector(".sys");
+  if (event && sys && (event.target !== sys || event.propertyName !== "max-height")) return;
+  if (headerPhase !== "folding" || !topBar) return;
+  clearTimeout(foldTimer);
+  if (sys) sys.removeEventListener("transitionend", finishFold);
+  flipHeader(() => {
+    if (!topBar || headerPhase !== "folding") return;
+    topBar.classList.add("is-compact");
+    headerPhase = "compact";
+    syncExpandButton();
+  });
+}
+
+function beginFold() {
+  if (!topBar || headerPhase === "folding" || headerPhase === "compact") return;
+  clearTimeout(foldTimer);
+  headerPhase = "folding";
+  topBar.classList.add("is-folding");
+  syncExpandButton();
+  const sys = topBar.querySelector(".sys");
+  if (reduceMotion.matches || !sys) {
+    finishFold();
+    return;
+  }
+  sys.addEventListener("transitionend", finishFold);
+  foldTimer = setTimeout(finishFold, FOLD_MS + 80);
+}
+
+function beginOpen() {
+  if (!topBar || headerPhase === "open") return;
+  clearTimeout(foldTimer);
+  const sys = topBar.querySelector(".sys");
+  if (sys) sys.removeEventListener("transitionend", finishFold);
+  const wasCompact = topBar.classList.contains("is-compact");
+  headerPhase = "open";
+  if (wasCompact) {
+    flipHeader(() => {
+      topBar.classList.remove("is-compact", "is-folding");
+      syncExpandButton();
+    });
+    return;
+  }
+  topBar.classList.remove("is-compact");
+  if (!reduceMotion.matches) void topBar.offsetHeight;
+  topBar.classList.remove("is-folding");
+  syncExpandButton();
+}
 
 function syncCompactHeader() {
   if (!topBar) return;
-  const compact = phoneQuery.matches && watchPane && watchPane.scrollTop > 20;
-  topBar.classList.toggle("is-compact", Boolean(compact));
+  if (!phoneQuery.matches) {
+    headerPin = false;
+    beginOpen();
+    return;
+  }
+  const scrolled = Boolean(watchPane && watchPane.scrollTop > 24);
+  if (!scrolled) headerPin = false;
+  else if (headerPin && watchPane.scrollTop > headerPinAt + 80) headerPin = false;
+  if (scrolled && !headerPin) beginFold();
+  else beginOpen();
+}
+
+if (expandHeaderBtn) {
+  expandHeaderBtn.addEventListener("click", () => {
+    headerPin = true;
+    headerPinAt = watchPane ? watchPane.scrollTop : 0;
+    beginOpen();
+  });
 }
 
 if (watchPane) watchPane.addEventListener("scroll", syncCompactHeader, { passive: true });
 phoneQuery.addEventListener("change", syncCompactHeader);
+syncCompactHeader();
 
 applyLight(document.documentElement.dataset.light === "night" ? "night" : "day");
 document.querySelector("#lightDay").addEventListener("click", () => applyLight("day"));

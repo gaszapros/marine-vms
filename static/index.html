@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Marine Online</title>
-  <link rel="stylesheet" href="app.css?v=38" />
+  <link rel="stylesheet" href="app.css?v=41" />
   <script>
     try {
       if (localStorage.getItem("marine-light") === "night") document.documentElement.dataset.light = "night";
@@ -38,6 +38,9 @@
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 14.5A8.5 8.5 0 1 1 9.5 3a7 7 0 0 0 11.5 11.5z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
       </button>
     </div>
+    <button type="button" id="expandHeader" class="header-open" aria-expanded="true" aria-label="Развернуть шапку" title="Развернуть шапку">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
     <nav class="nav">
       <button type="button" id="showSetup">Настройка</button>
     </nav>
@@ -208,6 +211,6 @@
   </dialog>
   <script src="heavy.js?v=24"></script>
   <script src="hls.min.js?v=5"></script>
-  <script src="app.js?v=32"></script>
+  <script src="app.js?v=36"></script>
 </body>
 </html>

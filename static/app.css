@@ -261,6 +261,16 @@ a { color: var(--amber); }
   color: var(--top);
   font-weight: 700;
 }
+.header-open {
+  display: none;
+  flex: none;
+  width: 1.75rem;
+  height: 1.75rem;
+  padding: 0;
+  border-radius: 8px;
+  place-items: center;
+}
+.header-open svg { width: 1rem; height: 1rem; display: block; }
 .nav { display: flex; gap: 0.4rem; flex: none; }
 .nav button { min-width: 7.2rem; }
 .nav button.on { background: var(--amber); color: #ffffff; border-color: transparent; font-weight: 650; }
@@ -723,7 +733,13 @@ html[data-light="night"] {
 }
 html[data-light="night"] .arm.off { background: #3a2024; color: #ffb4b4; }
 @media (max-width: 720px) {
-  .top { align-items: stretch; gap: 0.55rem; padding: 0.55rem 0.7rem 0.65rem; }
+  .top {
+    align-items: stretch;
+    gap: 0.55rem;
+    padding: 0.55rem 0.7rem 0.65rem;
+    transition: gap 0.38s ease, padding 0.38s ease;
+  }
+  .brand img { transition: height 0.38s ease; }
   .brand,
   .top.dock-folded .brand { flex: 1 0 100%; width: 100%; max-width: none; }
   .top-tools {
@@ -736,6 +752,22 @@ html[data-light="night"] .arm.off { background: #3a2024; color: #ffb4b4; }
       "clocks light";
     gap: 0.45rem 0.65rem;
     align-items: center;
+    transition: gap 0.38s ease, row-gap 0.38s ease;
+  }
+  .sys {
+    overflow: hidden;
+    max-height: 10rem;
+    opacity: 1;
+    transition: max-height 0.38s ease, opacity 0.28s ease;
+  }
+  #clockLocal {
+    overflow: hidden;
+    max-height: 1.7rem;
+    opacity: 1;
+    transition: max-height 0.38s ease, opacity 0.24s ease, margin 0.38s ease;
+  }
+  .alarm-zone {
+    transition: max-height 0.38s ease, opacity 0.26s ease, padding 0.38s ease, min-height 0.38s ease, border-width 0.38s ease;
   }
   .sys { grid-area: sys; grid-template-columns: 1fr 1fr; gap: 0.4rem; }
   .sys-pill { min-width: 0; }
@@ -743,6 +775,20 @@ html[data-light="night"] .arm.off { background: #3a2024; color: #ffb4b4; }
     grid-area: alarm;
     width: 100%;
     min-height: 2.6rem;
+    max-height: 8rem;
+  }
+  .alarm-flag,
+  .alarm-more,
+  .alarm-copy small {
+    overflow: hidden;
+    max-height: 1.6rem;
+    transition: max-height 0.32s ease, opacity 0.22s ease;
+  }
+  .top.is-folding .alarm-flag,
+  .top.is-folding .alarm-more,
+  .top.is-folding .alarm-copy small {
+    max-height: 0;
+    opacity: 0;
   }
   .clocks { grid-area: clocks; align-items: flex-start; gap: 0.16rem; }
   .clocks time { justify-content: flex-start; }
@@ -760,6 +806,48 @@ html[data-light="night"] .arm.off { background: #3a2024; color: #ffb4b4; }
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+  .top.is-folding {
+    gap: 0.28rem;
+    padding: 0.32rem 0.6rem;
+    overflow: hidden;
+  }
+  .top.is-folding .brand img { height: 28px; }
+  .top.is-folding .top-tools {
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    grid-template-areas:
+      "sys sys sys"
+      "alarm alarm alarm"
+      "clocks light expand";
+    row-gap: 0;
+  }
+  .top.is-folding .header-open {
+    display: grid;
+    grid-area: expand;
+    align-self: center;
+  }
+  .top.is-folding .sys {
+    max-height: 0;
+    opacity: 0;
+    pointer-events: none;
+  }
+  .top.is-folding #clockLocal {
+    max-height: 0;
+    opacity: 0;
+    margin: 0;
+  }
+  .top.is-folding .alarm-zone:not(.hot) {
+    max-height: 0;
+    min-height: 0;
+    opacity: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+    border-width: 0;
+    pointer-events: none;
+  }
+  .top.is-folding .alarm-zone.hot {
+    min-height: 0;
+    padding: 0.12rem 0.4rem;
   }
   .top.is-compact {
     flex-direction: row;
@@ -798,6 +886,7 @@ html[data-light="night"] .arm.off { background: #3a2024; color: #ffb4b4; }
   .top.is-compact .alarm-more,
   .top.is-compact .alarm-copy small { display: none; }
   .top.is-compact .alarm-copy strong { font-size: 0.72rem; }
+  .top.is-compact .alarm-zone.hot .actions { display: none; }
   .top.is-compact .alarm-zone.hot button {
     padding: 0.08rem 0.32rem;
     font-size: 0.66rem;
@@ -810,4 +899,8 @@ html[data-light="night"] .arm.off { background: #3a2024; color: #ffb4b4; }
   }
   .top.is-compact .clocks b { font-size: 0.78rem; }
   .top.is-compact .light { align-self: center; }
+  .top.is-compact .header-open { display: grid; align-self: center; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .top, .brand img, .top-tools, .sys, #clockLocal, .alarm-zone { transition: none; }
 }
