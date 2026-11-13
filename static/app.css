@@ -104,6 +104,14 @@ a { color: var(--amber); }
   object-fit: contain;
   object-position: left center;
 }
+.top-tools {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.65rem;
+  min-width: 0;
+}
 .sys {
   display: grid;
   grid-template-columns: auto auto;
@@ -136,13 +144,14 @@ a { color: var(--amber); }
 .sys-pill[data-state="warn"] b { color: var(--warn); }
 .sys-pill[data-state="bad"] b { color: var(--rec); }
 .alarm-zone {
-  flex: 1 1 220px;
-  min-width: 220px;
+  flex: 0 0 220px;
+  width: 220px;
+  max-width: 220px;
   min-height: 52px;
   display: flex;
   align-items: center;
-  gap: 0.6rem;
-  padding: 0.3rem 0.65rem;
+  gap: 0.45rem;
+  padding: 0.28rem 0.45rem;
   border: 1px solid var(--line);
   border-radius: 10px;
   background: var(--field);
@@ -153,7 +162,12 @@ a { color: var(--amber); }
   color: #fff;
   animation: alarmPulse 1.15s ease-in-out infinite;
 }
-.alarm-quiet { margin: 0; color: var(--muted); font-size: 0.86rem; }
+.alarm-quiet {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.75rem;
+  line-height: 1.25;
+}
 .alarm-live {
   display: flex;
   align-items: center;
@@ -675,8 +689,8 @@ dialog::backdrop { background: rgba(4, 8, 12, 0.78); }
   .top { flex-wrap: wrap; }
   .brand { min-width: 0; max-width: min(220px, 70vw); }
   .brand img { height: 48px; }
-  .alarm-zone { flex: 1 1 100%; order: 6; min-width: 0; }
-  .clocks { margin-left: auto; }
+  .top-tools { flex-wrap: wrap; }
+  .alarm-zone { flex-basis: 180px; width: 180px; max-width: 180px; }
 }
 @media (max-width: 480px) {
   .brand img { height: 40px; }

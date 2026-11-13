@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Marine Online</title>
-  <link rel="stylesheet" href="app.css?v=34" />
+  <link rel="stylesheet" href="app.css?v=35" />
   <script>
     try {
       if (localStorage.getItem("marine-light") === "night") document.documentElement.dataset.light = "night";
@@ -16,6 +16,7 @@
     <div class="brand">
       <img src="logo.png?v=2" alt="Marine Online" />
     </div>
+    <div class="top-tools">
     <div class="sys" id="sysStatus" aria-label="Глобальные статусы системы">
       <p class="sys-pill" data-sys="link" data-state="idle"><span>Связь</span><b>…</b></p>
       <p class="sys-pill" data-sys="watch" data-state="idle"><span>Вахта</span><b>…</b></p>
@@ -40,6 +41,7 @@
     <nav class="nav">
       <button type="button" id="showSetup">Настройка</button>
     </nav>
+    </div>
   </header>
 
   <main class="layout" id="watch">
