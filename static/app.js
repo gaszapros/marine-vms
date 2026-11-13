@@ -673,8 +673,8 @@ function watchRules() {
   const stored = loadJson(RULE_KEY, null);
   const seeded = seededCameras();
   if (!Array.isArray(stored) || !stored.length) {
-    const rules = allPublicCameras().concat(allFleetCameras()).map((cam) => blankCondition(cam.id, `cond-${cam.id}`));
-    for (const cam of allPublicCameras().concat(allFleetCameras())) seeded.add(cam.id);
+    const rules = allPublicCameras().map((cam) => blankCondition(cam.id, `cond-${cam.id}`));
+    for (const cam of allPublicCameras()) seeded.add(cam.id);
     rememberSeed(seeded);
     saveRules(rules);
     return rules;
@@ -698,8 +698,16 @@ function watchRules() {
       changed = true;
     }
     return next;
-  }).filter((rule) => rule && rule.cameraId);
-  for (const cam of allPublicCameras().concat(allFleetCameras())) {
+  }).filter((rule) => {
+    if (!(rule && rule.cameraId)) return false;
+    const fleetSlot = rule.id === `cond-${rule.cameraId}` && rule.cameraId.includes(":");
+    if (fleetSlot && CAMERA_ROLES.some((role) => rule.cameraId.endsWith(`:${role.id}`))) {
+      changed = true;
+      return false;
+    }
+    return true;
+  });
+  for (const cam of allPublicCameras()) {
     if (seeded.has(cam.id)) continue;
     if (!rules.some((rule) => rule.cameraId === cam.id)) {
       rules.push(blankCondition(cam.id, `cond-${cam.id}`));
