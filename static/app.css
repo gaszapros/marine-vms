@@ -723,10 +723,34 @@ html[data-light="night"] {
 }
 html[data-light="night"] .arm.off { background: #3a2024; color: #ffb4b4; }
 @media (max-width: 720px) {
-  .clocks { gap: 0.45rem; }
-  .clocks b { font-size: 0.95rem; }
-  .light button { padding: 0.28rem 0.45rem; }
-  .nav button { min-width: 0; padding: 0.4rem 0.55rem; }
+  .top { align-items: stretch; gap: 0.55rem; padding: 0.55rem 0.7rem 0.65rem; }
+  .brand,
+  .top.dock-folded .brand { flex: 1 0 100%; width: 100%; max-width: none; }
+  .top-tools {
+    flex: 1 0 100%;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "sys sys"
+      "alarm alarm"
+      "clocks light";
+    gap: 0.45rem 0.65rem;
+    align-items: center;
+  }
+  .sys { grid-area: sys; grid-template-columns: 1fr 1fr; gap: 0.4rem; }
+  .sys-pill { min-width: 0; }
+  .alarm-zone {
+    grid-area: alarm;
+    width: 100%;
+    min-height: 2.6rem;
+  }
+  .clocks { grid-area: clocks; align-items: flex-start; gap: 0.16rem; }
+  .clocks time { justify-content: flex-start; }
+  .light { grid-area: light; justify-self: end; align-self: center; }
+  .light button { padding: 0; }
+  body:not(.local) .nav { display: none; }
+  .nav { grid-column: 1 / -1; justify-content: stretch; }
+  .nav button { flex: 1; min-width: 0; padding: 0.4rem 0.55rem; }
   .wall { grid-template-columns: 1fr; gap: 0.75rem; }
   .stage { aspect-ratio: 16 / 9; }
   .card header { align-items: center; }
