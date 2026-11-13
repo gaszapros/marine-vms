@@ -537,6 +537,72 @@ function allPublicCameras() {
   return PUBLIC_CAMERAS.concat(extraCameras());
 }
 
+const FLEET_KEY = "marine-fleet";
+const CAMERA_ROLES = [
+  { id: "port-bow", title: "Левый борт, нос" },
+  { id: "starboard-bow", title: "Правый борт, нос" },
+  { id: "port-stern", title: "Левый борт, корма" },
+  { id: "starboard-stern", title: "Правый борт, корма" },
+];
+
+function blankVessel(name, id) {
+  const cameras = {};
+  for (const role of CAMERA_ROLES) cameras[role.id] = { src: "" };
+  return { id: id || `vessel-${Date.now()}`, name: name || "Судно", cameras };
+}
+
+function loadFleet() {
+  const stored = loadJson(FLEET_KEY, null);
+  const fleet = stored && Array.isArray(stored.vessels) && stored.vessels.length
+    ? stored
+    : { view: "fleet", selected: "vessel-1", vessels: [blankVessel("Судно 1", "vessel-1")] };
+  for (const vessel of fleet.vessels) {
+    vessel.cameras = vessel.cameras || {};
+    for (const role of CAMERA_ROLES) {
+      if (!vessel.cameras[role.id] || typeof vessel.cameras[role.id].src !== "string") {
+        vessel.cameras[role.id] = { src: "" };
+      }
+    }
+  }
+  if (!fleet.vessels.some((vessel) => vessel.id === fleet.selected)) fleet.selected = fleet.vessels[0].id;
+  if (fleet.view !== "stand") fleet.view = "fleet";
+  return fleet;
+}
+
+function saveFleet(fleet) {
+  localStorage.setItem(FLEET_KEY, JSON.stringify(fleet));
+}
+
+function vesselCameras(vessel) {
+  return CAMERA_ROLES.map((role) => ({
+    id: `${vessel.id}:${role.id}`,
+    role: role.id,
+    name: role.title,
+    location: vessel.name,
+    src: vessel.cameras[role.id].src.trim(),
+    vesselId: vessel.id,
+  }));
+}
+
+function allFleetCameras() {
+  return loadFleet().vessels.flatMap(vesselCameras);
+}
+
+function selectedFleetCameras() {
+  const fleet = loadFleet();
+  const vessel = fleet.vessels.find((item) => item.id === fleet.selected) || fleet.vessels[0];
+  return vessel ? vesselCameras(vessel) : [];
+}
+
+function watchView() {
+  return loadFleet().view === "stand" ? "stand" : "fleet";
+}
+
+function visibleCameras() {
+  if (!publicMode || watchView() === "stand") return allPublicCameras();
+  return selectedFleetCameras();
+}
+
 function blankCondition(cameraId, id) {
   return {
     id: id || `cond-${Date.now()}`,
@@ -563,9 +629,10 @@ function watchRules() {
   const stored = loadJson(RULE_KEY, null);
   const seeded = seededCameras();
   if (!Array.isArray(stored) || !stored.length) {
-    const rules = allPublicCameras().map((cam) => blankCondition(cam.id, `cond-${cam.id}`));
-    for (const cam of allPublicCameras()) seeded.add(cam.id);
+    const rules = allPublicCameras().concat(allFleetCameras()).map((cam) => blankCondition(cam.id, `cond-${cam.id}`));
+    for (const cam of allPublicCameras().concat(allFleetCameras())) seeded.add(cam.id);
     rememberSeed(seeded);
+    saveRules(rules);
     return rules;
   }
   let changed = false;
@@ -588,7 +655,7 @@ function watchRules() {
     }
     return next;
   }).filter((rule) => rule && rule.cameraId);
-  for (const cam of allPublicCameras()) {
+  for (const cam of allPublicCameras().concat(allFleetCameras())) {
     if (seeded.has(cam.id)) continue;
     if (!rules.some((rule) => rule.cameraId === cam.id)) {
       rules.push(blankCondition(cam.id, `cond-${cam.id}`));
@@ -690,8 +757,9 @@ function renderExtraList() {
 let selectedConditionId = null;
 
 function renderConditions() {
-  const rules = watchRules();
-  const cameras = allPublicCameras();
+  const cameras = visibleCameras();
+  const ids = new Set(cameras.map((cam) => cam.id));
+  const rules = watchRules().filter((rule) => ids.has(rule.cameraId));
   if (!rules.some((rule) => rule.id === selectedConditionId)) {
     selectedConditionId = rules[0] ? rules[0].id : null;
   }
@@ -1097,6 +1165,7 @@ async function tick() {
     document.body.classList.add("local");
     renderStatus(status);
     renderEvents(await api("/api/events"));
+    paintWatchChrome();
   } catch (error) {
     console.error(error);
     document.body.classList.remove("local");
@@ -1145,6 +1214,11 @@ function closeZoom() {
 }
 
 function openCamera(card) {
+  if (card.classList.contains("slot-wait")) {
+    const input = document.querySelector(`#vesselSlots [name="${card.dataset.role}"]`);
+    if (input) input.focus();
+    return;
+  }
   const src = card.dataset.stream;
   if (!src) return;
   closeZoom();
@@ -1208,15 +1282,27 @@ function showPublicCameras() {
   armBtn.textContent = "На судовом компьютере";
   eventsEl.innerHTML = `<p class="hint">Журнал роликов ведётся на судовом компьютере. Здесь вахта видит живые камеры.</p>`;
   const watches = [];
-  for (const cam of allPublicCameras()) {
+  for (const cam of visibleCameras()) {
     const card = document.createElement("article");
     card.className = "card";
-    card.innerHTML = `
-      <div class="stage"><video muted autoplay playsinline></video></div>
-      <header><div><strong></strong><small class="place"></small></div><span class="signal"></span></header>`;
+    card.dataset.camera = cam.id;
+    card.dataset.role = cam.role || "";
+    const header = `<header><div><strong></strong><small class="place"></small></div><span class="signal"></span></header>`;
+    if (!cam.src) {
+      card.classList.add("slot-wait");
+      card.innerHTML = `<div class="stage slot-empty"><p>Нет потока</p></div>${header}`;
+      markCameraCard(card, cam.name);
+      card.setAttribute("aria-label", `Подключить: ${cam.name}`);
+      const place = card.querySelector(".place");
+      if (place) place.textContent = cam.location || "";
+      const signal = card.querySelector(".signal");
+      if (signal) signal.textContent = "нет потока";
+      wall.appendChild(card);
+      continue;
+    }
+    card.innerHTML = `<div class="stage"><video muted autoplay playsinline></video></div>${header}`;
     card.dataset.kind = "hls";
     card.dataset.stream = cam.src;
-    card.dataset.camera = cam.id;
     markCameraCard(card, cam.name);
     const place = card.querySelector(".place");
     if (place) place.textContent = cam.location || "";
@@ -1242,9 +1328,37 @@ function showPublicCameras() {
     });
   }
   if (window.HeavyWatch) HeavyWatch.start(watches);
+  paintWatchChrome();
+  renderFleet();
   renderExtraList();
   renderPlainRules();
   renderPublicQueue();
+  if (publicMode) renderSystem(null);
+}
+
+function paintWatchChrome() {
+  const stand = !publicMode || watchView() === "stand";
+  document.querySelector("#fleetBlock").hidden = stand;
+  document.querySelector("#standTools").hidden = !stand;
+  wall.classList.toggle("fleet", publicMode && !stand);
+}
+
+function renderFleet() {
+  const fleet = loadFleet();
+  const list = document.querySelector("#fleetList");
+  list.innerHTML = fleet.vessels.map((vessel) => `<li class="${vessel.id === fleet.selected ? "on" : ""}">
+      <button type="button" class="pick" data-pick-vessel="${escapeHtml(vessel.id)}">${escapeHtml(vessel.name)}</button>
+      ${fleet.vessels.length > 1 ? `<button type="button" data-drop-vessel="${escapeHtml(vessel.id)}">Убрать</button>` : ""}
+    </li>`).join("");
+  const vessel = fleet.vessels.find((item) => item.id === fleet.selected) || fleet.vessels[0];
+  const form = document.querySelector("#vesselSlots");
+  if (!vessel) {
+    form.innerHTML = "";
+    return;
+  }
+  form.innerHTML = CAMERA_ROLES.map((role) => `<label>${escapeHtml(role.title)}
+      <input name="${role.id}" value="${escapeHtml(vessel.cameras[role.id].src)}" placeholder="https://…/playlist.m3u8" />
+    </label>`).join("") + `<button type="submit">Сохранить потоки</button>`;
 }
 
 function showView(name) {
@@ -1328,7 +1442,7 @@ document.querySelector("#conditionForm").addEventListener("submit", (event) => {
 });
 
 document.querySelector("#newCondition").addEventListener("click", () => {
-  const cam = allPublicCameras()[0];
+  const cam = visibleCameras()[0];
   if (!cam) return;
   const rule = blankCondition(cam.id);
   saveRules(watchRules().concat(rule));
@@ -1358,6 +1472,67 @@ document.querySelector("#player").addEventListener("close", () => {
   img.hidden = true;
   img.removeAttribute("src");
   playerCaseId = null;
+});
+
+document.querySelector("#addVessel").addEventListener("submit", (event) => {
+  event.preventDefault();
+  const name = new FormData(event.target).get("name").trim();
+  if (!name) return;
+  const fleet = loadFleet();
+  const vessel = blankVessel(name);
+  fleet.vessels.push(vessel);
+  fleet.selected = vessel.id;
+  fleet.view = "fleet";
+  saveFleet(fleet);
+  event.target.reset();
+  showPublicCameras();
+});
+
+document.querySelector("#fleetList").addEventListener("click", (event) => {
+  const target = event.target instanceof Element ? event.target.closest("button") : null;
+  if (!(target instanceof HTMLElement)) return;
+  const fleet = loadFleet();
+  if (target.dataset.pickVessel) {
+    fleet.selected = target.dataset.pickVessel;
+    saveFleet(fleet);
+    showPublicCameras();
+  }
+  if (target.dataset.dropVessel && fleet.vessels.length > 1) {
+    const id = target.dataset.dropVessel;
+    fleet.vessels = fleet.vessels.filter((vessel) => vessel.id !== id);
+    if (!fleet.vessels.some((vessel) => vessel.id === fleet.selected)) fleet.selected = fleet.vessels[0].id;
+    saveFleet(fleet);
+    const prefix = `${id}:`;
+    saveRules(watchRules().filter((rule) => !String(rule.cameraId).startsWith(prefix)));
+    showPublicCameras();
+  }
+});
+
+document.querySelector("#vesselSlots").addEventListener("submit", (event) => {
+  event.preventDefault();
+  const fleet = loadFleet();
+  const vessel = fleet.vessels.find((item) => item.id === fleet.selected);
+  if (!vessel) return;
+  const data = new FormData(event.target);
+  for (const role of CAMERA_ROLES) {
+    vessel.cameras[role.id].src = String(data.get(role.id) || "").trim();
+  }
+  saveFleet(fleet);
+  showPublicCameras();
+});
+
+document.querySelector("#openStand").addEventListener("click", () => {
+  const fleet = loadFleet();
+  fleet.view = "stand";
+  saveFleet(fleet);
+  showPublicCameras();
+});
+
+document.querySelector("#openFleet").addEventListener("click", () => {
+  const fleet = loadFleet();
+  fleet.view = "fleet";
+  saveFleet(fleet);
+  showPublicCameras();
 });
 
 document.querySelector("#addCamera").addEventListener("submit", async (event) => {

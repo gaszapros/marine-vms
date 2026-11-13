@@ -350,6 +350,15 @@ a { color: var(--amber); }
 @media (prefers-reduced-motion: reduce) {
   .dock, #dockBody { transition: none; }
 }
+.wall.fleet { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; }
+.slot-empty {
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+  background: var(--field);
+}
+.slot-empty p { margin: 0; }
+.card.slot-wait { cursor: default; }
 .wall {
   flex: 1 1 auto;
   order: 0;
@@ -489,13 +498,17 @@ body:not(.local) #builders { display: none; }
 }
 .dock input, .dock select { width: 100%; min-width: 0; max-width: 100%; }
 .dock form button { width: 100%; }
-#addCamera button[type="submit"] {
+#addCamera button[type="submit"],
+#addVessel button[type="submit"],
+#vesselSlots button[type="submit"] {
   background: var(--amber);
   color: #ffffff;
   border-color: transparent;
   font-weight: 650;
 }
-#addCamera button[type="submit"]:hover { border-color: transparent; filter: brightness(1.06); }
+#addCamera button[type="submit"]:hover,
+#addVessel button[type="submit"]:hover,
+#vesselSlots button[type="submit"]:hover { border-color: transparent; filter: brightness(1.06); }
 .dock h2:not(:first-child) { margin-top: 1.15rem; }
 .queue-bar {
   flex: 0 0 auto;
@@ -727,6 +740,7 @@ dialog::backdrop { background: rgba(4, 8, 12, 0.78); }
   #watch.layout { overflow: auto; }
   .stage-row { flex-direction: column; flex: none; }
   .wall { order: -1; overflow: visible; grid-template-columns: 1fr 1fr 1fr 1fr; grid-template-rows: none; }
+  .wall.fleet { grid-template-columns: 1fr 1fr; grid-template-rows: none; }
   .card { height: auto; }
   .stage { flex: none; aspect-ratio: 16 / 9; }
   .side { order: 0; flex: none; width: auto; max-width: none; }
@@ -833,6 +847,7 @@ html[data-light="night"] .arm.off { background: #3a2024; color: #ffb4b4; }
   .nav { grid-column: 1 / -1; justify-content: stretch; }
   .nav button { flex: 1; min-width: 0; padding: 0.4rem 0.55rem; }
   .wall { grid-template-columns: 1fr; gap: 0.75rem; }
+  .wall.fleet { grid-template-columns: 1fr; grid-template-rows: none; }
   .stage { aspect-ratio: 16 / 9; }
   .card header { align-items: center; }
   .card header > div { min-width: 0; }

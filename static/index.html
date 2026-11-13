@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Marine Online</title>
-  <link rel="stylesheet" href="app.css?v=43" />
+  <link rel="stylesheet" href="app.css?v=44" />
   <script>
     try {
       if (localStorage.getItem("marine-light") === "night") document.documentElement.dataset.light = "night";
@@ -55,8 +55,21 @@
         <button type="button" id="foldDock" aria-expanded="true" aria-controls="dockBody">Свернуть</button>
       </div>
       <div id="dockBody">
-      <h2>Камеры</h2>
-      <p class="hint">Своя камера: название и адрес потока. Она встанет на стену рядом с остальными.</p>
+      <div id="fleetBlock">
+        <h2>Флот</h2>
+        <p class="hint">У судна четыре камеры: левый и правый борт, нос и корма. Поток вписывается в свою ячейку.</p>
+        <ul id="fleetList" class="plain"></ul>
+        <form id="addVessel" class="stack">
+          <label>Судно <input name="name" required placeholder="Название судна" /></label>
+          <button type="submit">Добавить судно</button>
+        </form>
+        <form id="vesselSlots" class="stack"></form>
+        <button type="button" id="openStand">Стенд</button>
+      </div>
+      <div id="standTools">
+      <h2>Стенд</h2>
+      <p class="hint">Тестовые камеры для проверки детектора. В мониторинг флота они не входят.</p>
+      <button type="button" id="openFleet">К флоту</button>
       <p class="hint" id="localNote">На судовом компьютере камера подключается сюда же. Пороги и журнал — кнопка «Настройка».</p>
       <form id="addCamera" class="stack">
         <label>Название <input name="name" required placeholder="Палуба" /></label>
@@ -65,6 +78,7 @@
         <button type="submit">Подключить</button>
       </form>
       <ul id="extraList" class="plain"></ul>
+      </div>
       <div id="ruleBlock">
         <h2>Условия записи</h2>
         <p class="hint">У каждой строки своя камера. Снимите галочку — эта камера молчит, остальные работают как были. Камера и «запись» применяются сразу.</p>
@@ -211,6 +225,6 @@
   </dialog>
   <script src="heavy.js?v=27"></script>
   <script src="hls.min.js?v=5"></script>
-  <script src="app.js?v=44"></script>
+  <script src="app.js?v=45"></script>
 </body>
 </html>
