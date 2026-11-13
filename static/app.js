@@ -1523,6 +1523,19 @@ function paintClock() {
   }
 }
 
+const topBar = document.querySelector(".top");
+const watchPane = document.querySelector("#watch");
+const phoneQuery = window.matchMedia("(max-width: 720px)");
+
+function syncCompactHeader() {
+  if (!topBar) return;
+  const compact = phoneQuery.matches && watchPane && watchPane.scrollTop > 20;
+  topBar.classList.toggle("is-compact", Boolean(compact));
+}
+
+if (watchPane) watchPane.addEventListener("scroll", syncCompactHeader, { passive: true });
+phoneQuery.addEventListener("change", syncCompactHeader);
+
 applyLight(document.documentElement.dataset.light === "night" ? "night" : "day");
 document.querySelector("#lightDay").addEventListener("click", () => applyLight("day"));
 document.querySelector("#lightNight").addEventListener("click", () => applyLight("night"));

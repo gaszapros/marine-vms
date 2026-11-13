@@ -761,4 +761,53 @@ html[data-light="night"] .arm.off { background: #3a2024; color: #ffb4b4; }
     overflow: hidden;
     text-overflow: ellipsis;
   }
+  .top.is-compact {
+    flex-direction: row;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.28rem 0.6rem;
+  }
+  .top.is-compact .brand,
+  .top.is-compact.dock-folded .brand {
+    flex: 0 0 auto;
+    width: auto;
+    max-width: 38vw;
+  }
+  .top.is-compact .brand img { height: 28px; }
+  .top.is-compact .top-tools {
+    flex: 1 1 auto;
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 0.4rem;
+    min-width: 0;
+  }
+  .top.is-compact .sys,
+  .top.is-compact .nav,
+  .top.is-compact #clockLocal,
+  .top.is-compact .alarm-zone:not(.hot) { display: none; }
+  .top.is-compact .alarm-zone.hot {
+    flex: 1 1 auto;
+    width: auto;
+    min-width: 0;
+    min-height: 0;
+    padding: 0.12rem 0.4rem;
+  }
+  .top.is-compact .alarm-flag,
+  .top.is-compact .alarm-more,
+  .top.is-compact .alarm-copy small { display: none; }
+  .top.is-compact .alarm-copy strong { font-size: 0.72rem; }
+  .top.is-compact .alarm-zone.hot button {
+    padding: 0.08rem 0.32rem;
+    font-size: 0.66rem;
+  }
+  .top.is-compact .clocks {
+    flex-direction: row;
+    align-items: center;
+    gap: 0.35rem;
+    margin-left: auto;
+  }
+  .top.is-compact .clocks b { font-size: 0.78rem; }
+  .top.is-compact .light { align-self: center; }
 }
