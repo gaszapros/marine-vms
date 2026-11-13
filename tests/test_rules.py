@@ -4,7 +4,7 @@ from datetime import datetime
 import numpy as np
 
 from app.rules import evaluate_rule, mask_ratio, schedule_matches, speed_matches
-from app.vehicles import freight_size, keep_freight
+from app.vehicles import box_is_freight, keep_freight
 
 
 class ScheduleTests(unittest.TestCase):
@@ -63,10 +63,15 @@ class ScheduleTests(unittest.TestCase):
         marks = keep_freight(rows, (360, 640), 1.0)
         self.assertEqual(marks, [(100, 80, 50, 40, "грузовой")])
 
-    def test_freight_size_uses_camera_scale(self):
-        self.assertFalse(freight_size(40, 36, 640, 360, (30, 28)))
-        self.assertTrue(freight_size(50, 70, 640, 360, (30, 28)))
-        self.assertFalse(freight_size(18, 16, 640, 360, None))
+    def test_each_camera_formula(self):
+        self.assertFalse(box_is_freight("cuomo", 0.7, 0.05, 0.03, 0.1, 0.7, 0))
+        self.assertTrue(box_is_freight("cuomo", 0.7, 0.1, 0.07, 0.1, 0.2, 0))
+        self.assertTrue(box_is_freight("i66-61", 0.38, 0.084, 0.06, 0.25, 0, 0.05))
+        self.assertTrue(box_is_freight("i10", 0.38, 0.074, 0.09, 0.34, 0, 0))
+        self.assertFalse(box_is_freight("i10", 0.33, 0.038, 0.05, 0.01, 0.71, 0))
+        self.assertFalse(box_is_freight("i10-henderson", 0.31, 0.071, 0.048, 0.2, 0.28, 0))
+        self.assertFalse(box_is_freight("i10-scott", 0.8, 0.274, 0.056, 0, 0.69, 0))
+        self.assertFalse(box_is_freight("i10-lafayette", 0.94, 0.115, 0.103, 0, 0.3, 0))
 
     def test_zone_ratio(self):
         mask = np.zeros((100, 100), np.uint8)

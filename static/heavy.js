@@ -1,13 +1,21 @@
 /* Камера подсвечивается, когда в кадре грузовой транспорт. Размер сверяется с масштабом этой камеры. */
 window.HeavyWatch = (() => {
   const INPUT = 640;
-  const CONFIDENCE = 0.5;
   const CAR = 2;
   const BUS = 5;
   const TRUCK = 7;
-  const BINS = 8;
   const anchors = buildAnchors();
-  const profiles = new Map();
+  const FORMULAS = {
+    cuomo: { y0: 0.45, y1: 0.98, carH0: 0.024, carH1: 0.058, carW0: 0.018, carW1: 0.038, mul: 1.65, mild: 1.15, score: 0.18 },
+    i66: { y0: 0.12, y1: 0.98, carH0: 0.02, carH1: 0.11, carW0: 0.015, carW1: 0.09, mul: 1.6, mild: 1.2, score: 0.2 },
+    "i66-61": { y0: 0.28, y1: 0.98, carH0: 0.02, carH1: 0.07, carW0: 0.016, carW1: 0.045, mul: 1.55, mild: 1.2, score: 0.2 },
+    i10: { y0: 0.18, y1: 0.58, carH0: 0.04, carH1: 0.055, carW0: 0.045, carW1: 0.065, mul: 1.4, mild: 1.15, score: 0.28 },
+    "i10-whiskey": { y0: 0.08, y1: 0.96, carH0: 0.015, carH1: 0.09, carW0: 0.012, carW1: 0.07, mul: 1.6, mild: 1.2, score: 0.2 },
+    "i10-henderson": { y0: 0.15, y1: 0.62, carH0: 0.055, carH1: 0.09, carW0: 0.04, carW1: 0.06, mul: 1.75, mild: 1.6, score: 0.4 },
+    "i10-scott": { y0: 0.15, y1: 0.98, carH0: 0.05, carH1: 0.16, carW0: 0.04, carW1: 0.12, mul: 1.35, mild: 1.15, score: 0.22 },
+    "i10-lafayette": { y0: 0.38, y1: 0.98, carH0: 0.028, carH1: 0.1, carW0: 0.028, carW1: 0.09, mul: 1.45, mild: 1.15, score: 0.2 },
+    default: { y0: 0.2, y1: 0.98, carH0: 0.03, carH1: 0.1, carW0: 0.02, carW1: 0.07, mul: 1.6, mild: 1.25, score: 0.28 },
+  };
   let pixels = null;
 
   function sheet() {
@@ -116,67 +124,38 @@ window.HeavyWatch = (() => {
     return union <= 0 ? 0 : inter / union;
   }
 
-  function profileFor(cameraId) {
-    const key = cameraId || "camera";
-    let bins = profiles.get(key);
-    if (!bins) {
-      bins = Array.from({ length: BINS }, () => []);
-      profiles.set(key, bins);
-    }
-    return bins;
+  function line(y, y0, y1, start, end) {
+    const span = y1 - y0;
+    const share = span <= 0 ? 0 : Math.min(1, Math.max(0, (y - y0) / span));
+    return start + (end - start) * share;
   }
 
-  function rememberCar(profile, yFrac, box) {
-    const index = Math.min(BINS - 1, Math.max(0, Math.floor(yFrac * BINS)));
-    const bin = profile[index];
-    bin.push({ h: box.h, w: box.w });
-    if (bin.length > 12) bin.shift();
-  }
-
-  function carScale(profile, yFrac) {
-    const index = Math.min(BINS - 1, Math.max(0, Math.floor(yFrac * BINS)));
-    const samples = [];
-    for (const shift of [-1, 0, 1]) {
-      const bin = profile[index + shift];
-      if (bin) samples.push(...bin);
-    }
-    if (samples.length < 4) return null;
-    const heights = samples.map((item) => item.h).sort((left, right) => left - right);
-    const widths = samples.map((item) => item.w).sort((left, right) => left - right);
-    const mid = Math.floor((heights.length - 1) * 0.35);
-    return { h: heights[mid], w: widths[mid] };
-  }
-
-  function freightSize(box, sample, profile) {
-    const yFrac = (box.y + box.h / 2) / sample.height;
-    const car = carScale(profile, yFrac);
-    if (car) {
-      return box.h >= car.h * 1.55 && box.h <= car.h * 3.2 && box.w >= car.w * 1.2 && box.w <= car.w * 4.2;
-    }
-    const heightFrac = box.h / sample.height;
-    const widthFrac = box.w / sample.width;
-    return heightFrac >= 0.08 && heightFrac <= 0.5 && widthFrac >= 0.045 && widthFrac <= 0.55;
+  function matchesFormula(cameraId, y, height, width, truck, car, bus) {
+    const formula = FORMULAS[cameraId] || FORMULAS.default;
+    if (y < formula.y0 || y > formula.y1 || height <= 0 || width <= 0) return false;
+    if (height > 0.72 || width > 0.85) return false;
+    const carH = line(y, formula.y0, formula.y1, formula.carH0, formula.carH1);
+    const carW = line(y, formula.y0, formula.y1, formula.carW0, formula.carW1);
+    const big = height >= carH * formula.mul && width >= carW * formula.mul
+      && !(car >= 0.45 && truck < 0.08 && height < carH * (formula.mul + 0.35));
+    const labeled = truck >= formula.score && truck >= car && height >= carH * formula.mild && width >= carW * formula.mild;
+    const confused = bus >= formula.score && truck >= formula.score * 0.45 && height >= carH * formula.mul && width >= carW * formula.mild;
+    return big || labeled || confused;
   }
 
   function countFreight(output, sample, cameraId) {
     const data = output.data;
     const count = output.dims[1];
     const widthOut = output.dims[2];
-    const profile = profileFor(cameraId);
     const found = [];
     for (let i = 0; i < count; i += 1) {
       const base = i * widthOut;
       const objectness = data[base + 4];
-      if (objectness < 0.15) continue;
-      let best = 0;
-      let score = 0;
-      for (let cls = 0; cls < 80; cls += 1) {
-        const value = objectness * data[base + 5 + cls];
-        if (value > score) {
-          score = value;
-          best = cls;
-        }
-      }
+      if (objectness < 0.12) continue;
+      const truck = objectness * data[base + 5 + TRUCK];
+      const car = objectness * data[base + 5 + CAR];
+      const bus = objectness * data[base + 5 + BUS];
+      if (Math.max(truck, car, bus) < 0.15) continue;
       const centerX = (data[base] + anchors.gx[i]) * anchors.step[i];
       const centerY = (data[base + 1] + anchors.gy[i]) * anchors.step[i];
       const boxW = Math.exp(data[base + 2]) * anchors.step[i];
@@ -186,20 +165,11 @@ window.HeavyWatch = (() => {
         y: (centerY - boxH / 2) / sample.scaleY,
         w: boxW / sample.scaleX,
         h: boxH / sample.scaleY,
-        score,
+        score: Math.max(truck, bus),
       };
       if (box.w > sample.width * 0.92 && box.h > sample.height * 0.92) continue;
       const yFrac = (box.y + box.h / 2) / sample.height;
-      const heightFrac = box.h / sample.height;
-      if (best === CAR && score >= 0.45 && heightFrac >= 0.02 && heightFrac <= 0.4) {
-        rememberCar(profile, yFrac, box);
-        continue;
-      }
-      const truck = objectness * data[base + 5 + TRUCK];
-      const car = objectness * data[base + 5 + CAR];
-      const bus = objectness * data[base + 5 + BUS];
-      if (best !== TRUCK || truck < CONFIDENCE || truck < car + 0.06 || truck < bus) continue;
-      if (!freightSize(box, sample, profile)) continue;
+      if (!matchesFormula(cameraId, yFrac, box.h / sample.height, box.w / sample.width, truck, car, bus)) continue;
       found.push(box);
     }
     found.sort((left, right) => right.score - left.score);

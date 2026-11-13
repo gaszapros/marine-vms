@@ -26,10 +26,21 @@ BUS = 5
 TRUCK = 7
 INPUT = 640
 STRIDES = (8, 16, 32)
-CONFIDENCE = 0.5
-CAR_CONFIDENCE = 0.45
 NMS = 0.5
-BINS = 8
+
+# Высота и ширина легковой на дальней и ближней кромке дороги, доля кадра.
+# Грузовой — заметно крупнее этой линии либо уверенно отмечен как грузовик.
+FORMULAS = {
+    "cuomo": {"y0": 0.45, "y1": 0.98, "carH0": 0.024, "carH1": 0.058, "carW0": 0.018, "carW1": 0.038, "mul": 1.65, "mild": 1.15, "score": 0.18},
+    "i66": {"y0": 0.12, "y1": 0.98, "carH0": 0.02, "carH1": 0.11, "carW0": 0.015, "carW1": 0.09, "mul": 1.6, "mild": 1.2, "score": 0.2},
+    "i66-61": {"y0": 0.28, "y1": 0.98, "carH0": 0.02, "carH1": 0.07, "carW0": 0.016, "carW1": 0.045, "mul": 1.55, "mild": 1.2, "score": 0.2},
+    "i10": {"y0": 0.18, "y1": 0.58, "carH0": 0.04, "carH1": 0.055, "carW0": 0.045, "carW1": 0.065, "mul": 1.4, "mild": 1.15, "score": 0.28},
+    "i10-whiskey": {"y0": 0.08, "y1": 0.96, "carH0": 0.015, "carH1": 0.09, "carW0": 0.012, "carW1": 0.07, "mul": 1.6, "mild": 1.2, "score": 0.2},
+    "i10-henderson": {"y0": 0.15, "y1": 0.62, "carH0": 0.055, "carH1": 0.09, "carW0": 0.04, "carW1": 0.06, "mul": 1.75, "mild": 1.6, "score": 0.4},
+    "i10-scott": {"y0": 0.15, "y1": 0.98, "carH0": 0.05, "carH1": 0.16, "carW0": 0.04, "carW1": 0.12, "mul": 1.35, "mild": 1.15, "score": 0.22},
+    "i10-lafayette": {"y0": 0.38, "y1": 0.98, "carH0": 0.028, "carH1": 0.1, "carW0": 0.028, "carW1": 0.09, "mul": 1.45, "mild": 1.15, "score": 0.2},
+    "default": {"y0": 0.2, "y1": 0.98, "carH0": 0.03, "carH1": 0.1, "carW0": 0.02, "carW1": 0.07, "mul": 1.6, "mild": 1.25, "score": 0.28},
+}
 
 
 def _anchors() -> tuple[np.ndarray, np.ndarray]:
@@ -53,34 +64,58 @@ def _letterbox(rgb: np.ndarray) -> tuple[np.ndarray, float]:
     return padded, ratio
 
 
-def freight_size(box_w: int, box_h: int, frame_w: int, frame_h: int, car: tuple[float, float] | None) -> bool:
-    """Грузовик крупнее легкового на том же участке кадра. car — (высота, ширина) типичной легковушки."""
-    if frame_w <= 0 or frame_h <= 0 or box_w <= 0 or box_h <= 0:
+def _lerp(y: float, y0: float, y1: float, start: float, end: float) -> float:
+    span = y1 - y0
+    share = 0.0 if span <= 0 else min(1.0, max(0.0, (y - y0) / span))
+    return start + (end - start) * share
+
+
+def box_is_freight(camera_id: object, y: float, height: float, width: float, truck: float, car: float, bus: float) -> bool:
+    """Отдельная формула камеры: линия легковых и порог грузовика на этой глубине."""
+    formula = FORMULAS.get(str(camera_id), FORMULAS["default"])
+    if y < formula["y0"] or y > formula["y1"] or height <= 0 or width <= 0:
         return False
-    if car:
-        car_h, car_w = car
-        if car_h <= 0 or car_w <= 0:
-            return False
-        return car_h * 1.55 <= box_h <= car_h * 3.2 and car_w * 1.2 <= box_w <= car_w * 4.2
-    height_frac = box_h / frame_h
-    width_frac = box_w / frame_w
-    return 0.08 <= height_frac <= 0.5 and 0.045 <= width_frac <= 0.55
+    if height > 0.72 or width > 0.85:
+        return False
+    car_h = _lerp(y, formula["y0"], formula["y1"], formula["carH0"], formula["carH1"])
+    car_w = _lerp(y, formula["y0"], formula["y1"], formula["carW0"], formula["carW1"])
+    big = (
+        height >= car_h * formula["mul"]
+        and width >= car_w * formula["mul"]
+        and not (car >= 0.45 and truck < 0.08 and height < car_h * (formula["mul"] + 0.35))
+    )
+    labeled = (
+        truck >= formula["score"]
+        and truck >= car
+        and height >= car_h * formula["mild"]
+        and width >= car_w * formula["mild"]
+    )
+    confused = (
+        bus >= formula["score"]
+        and truck >= formula["score"] * 0.45
+        and height >= car_h * formula["mul"]
+        and width >= car_w * formula["mild"]
+    )
+    return big or labeled or confused
 
 
 def keep_freight(
     candidates: np.ndarray,
     frame_shape: tuple[int, int],
     ratio: float,
-    scales: list[tuple[float, float] | None] | None = None,
+    camera_id: object = "default",
 ) -> list[tuple[int, int, int, int, str]]:
     """Оставляет грузовой транспорт. candidates: x, y, w, h, score, class в координатах letterbox."""
     height, width = frame_shape
     marks: list[tuple[int, int, int, int, str]] = []
-    if candidates.size == 0:
+    if candidates.size == 0 or height <= 0 or width <= 0:
         return marks
-    for index, row in enumerate(candidates):
-        if int(row[5]) != TRUCK or float(row[4]) < CONFIDENCE:
-            continue
+    for row in candidates:
+        kind = int(row[5])
+        score = float(row[4])
+        truck = score if kind == TRUCK else 0.0
+        car = score if kind == CAR else 0.0
+        bus = score if kind == BUS else 0.0
         x = int(round(float(row[0]) / ratio))
         y = int(round(float(row[1]) / ratio))
         box_w = int(round(float(row[2]) / ratio))
@@ -91,8 +126,8 @@ def keep_freight(
         y = min(height - 1, max(0, y))
         box_w = min(width - x, box_w)
         box_h = min(height - y, box_h)
-        car = None if scales is None else scales[index]
-        if not freight_size(box_w, box_h, width, height, car):
+        center_y = (y + box_h / 2) / height
+        if not box_is_freight(camera_id, center_y, box_h / height, box_w / width, truck, car, bus):
             continue
         marks.append((x, y, box_w, box_h, "грузовой"))
     return marks
@@ -106,31 +141,6 @@ class HeavyFinder:
         self.failed = False
         self._lock = threading.Lock()
         self._grids, self._strides = _anchors()
-        self._cars: dict[object, list[list[tuple[float, float]]]] = {}
-
-    def _note_car(self, camera_id: object, y_frac: float, box_h: float, box_w: float) -> None:
-        bins = self._cars.setdefault(camera_id, [[] for _ in range(BINS)])
-        index = min(BINS - 1, max(0, int(y_frac * BINS)))
-        bins[index].append((box_h, box_w))
-        if len(bins[index]) > 12:
-            del bins[index][0]
-
-    def _car_scale(self, camera_id: object, y_frac: float) -> tuple[float, float] | None:
-        bins = self._cars.get(camera_id)
-        if not bins:
-            return None
-        index = min(BINS - 1, max(0, int(y_frac * BINS)))
-        samples: list[tuple[float, float]] = []
-        for shift in (-1, 0, 1):
-            slot = index + shift
-            if 0 <= slot < BINS:
-                samples.extend(bins[slot])
-        if len(samples) < 4:
-            return None
-        heights = sorted(item[0] for item in samples)
-        widths = sorted(item[1] for item in samples)
-        mid = max(0, int((len(heights) - 1) * 0.35))
-        return heights[mid], widths[mid]
 
     def _load(self) -> None:
         if self.ready or self.failed:
@@ -184,36 +194,38 @@ class HeavyFinder:
         truck = scores[:, TRUCK]
         car = scores[:, CAR]
         bus = scores[:, BUS]
-        best = np.argmax(scores, axis=1)
-        frame_h = frame_shape[0]
-        car_hits = np.flatnonzero((best == CAR) & (car >= CAR_CONFIDENCE))
-        if car_hits.size:
-            order = car_hits[np.argsort(car[car_hits])[::-1][:8]]
-            for hit in order:
-                box_h = float(boxes[hit, 3]) / ratio
-                box_w = float(boxes[hit, 2]) / ratio
-                center_y = (float(boxes[hit, 1]) + float(boxes[hit, 3]) / 2.0) / ratio
-                if frame_h <= 0 or not (0.02 * frame_h <= box_h <= 0.4 * frame_h):
-                    continue
-                self._note_car(camera_id, center_y / frame_h, box_h, box_w)
-        wanted = np.flatnonzero((best == TRUCK) & (truck >= CONFIDENCE) & (truck >= car + 0.06) & (truck >= bus))
-        if wanted.size == 0:
+        frame_h, frame_w = frame_shape
+        if frame_h <= 0 or frame_w <= 0:
             return []
-        truck_boxes = boxes[wanted]
-        truck_scores = truck[wanted]
-        keep = cv2.dnn.NMSBoxes(truck_boxes.tolist(), truck_scores.tolist(), CONFIDENCE, NMS)
+        signal = np.maximum(np.maximum(truck, bus), car)
+        order = np.argsort(signal)[::-1][:48]
+        picked_boxes = []
+        picked_scores = []
+        for hit in order:
+            if float(signal[hit]) < 0.15:
+                continue
+            box_w = float(boxes[hit, 2]) / ratio / frame_w
+            box_h = float(boxes[hit, 3]) / ratio / frame_h
+            center_y = (float(boxes[hit, 1]) + float(boxes[hit, 3]) / 2.0) / ratio / frame_h
+            if not box_is_freight(camera_id, center_y, box_h, box_w, float(truck[hit]), float(car[hit]), float(bus[hit])):
+                continue
+            picked_boxes.append(boxes[hit].tolist())
+            picked_scores.append(float(max(truck[hit], bus[hit], 0.2)))
+        if not picked_boxes:
+            return []
+        keep = cv2.dnn.NMSBoxes(picked_boxes, picked_scores, 0.15, NMS)
         if keep is None or len(keep) == 0:
             return []
         chosen = np.asarray(keep).reshape(-1)
-        packed = np.concatenate(
-            [truck_boxes[chosen], truck_scores[chosen, None], np.full((chosen.size, 1), TRUCK, np.float32)],
-            axis=1,
-        )
-        scales: list[tuple[float, float] | None] = []
-        for row in packed:
-            center_y = (float(row[1]) + float(row[3]) / 2.0) / ratio / frame_h
-            scales.append(self._car_scale(camera_id, center_y))
-        return keep_freight(packed, frame_shape, ratio, scales)
+        marks: list[tuple[int, int, int, int, str]] = []
+        for index in chosen:
+            row = picked_boxes[int(index)]
+            x = min(frame_w - 1, max(0, int(round(row[0] / ratio))))
+            y = min(frame_h - 1, max(0, int(round(row[1] / ratio))))
+            box_w = min(frame_w - x, max(1, int(round(row[2] / ratio))))
+            box_h = min(frame_h - y, max(1, int(round(row[3] / ratio))))
+            marks.append((x, y, box_w, box_h, "грузовой"))
+        return marks
 
 
 finder = HeavyFinder()
