@@ -1,7 +1,7 @@
 {
   "view": "fleet",
   "selected": "vessel-1",
-  "savedAt": 1794616233958,
+  "savedAt": 1794618123244,
   "vessels": [
     {
       "id": "vessel-1",
@@ -16,7 +16,7 @@
           "place": "Харлинген, вход в порт"
         },
         "port-stern": {
-          "src": "https://584b389d712f9.streamlock.net/live/binnenhaven.stream/playlist.m3u8",
+          "src": "https://rop.lv/b556d7b8-582a-44a4-b7fd-bef97ca516da",
           "place": "Харлинген, гавань"
         },
         "starboard-stern": {
