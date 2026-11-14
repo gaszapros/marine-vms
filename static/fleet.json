@@ -1,7 +1,7 @@
 {
   "view": "fleet",
   "selected": "vessel-1",
-  "savedAt": 1794616098167,
+  "savedAt": 1794616233958,
   "vessels": [
     {
       "id": "vessel-1",
@@ -12,7 +12,7 @@
           "place": "Порт Саванна"
         },
         "starboard-bow": {
-          "src": "https://www.youtube.com/watch?v=pr2p_uvmXh8",
+          "src": "https://5b8d2cbe62ad6.streamlock.net/hls/maassluis1.stream/playlist.m3u8?wowzatokenendtime=1794617942&wowzatokenhash=ULgrlQGJG6F_jtBKfXi5Yu7lp_MFcYgahapW2DDRgro=&wowzatokenstarttime=1794616082",
           "place": "Харлинген, вход в порт"
         },
         "port-stern": {
