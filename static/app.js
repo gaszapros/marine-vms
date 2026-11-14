@@ -576,6 +576,7 @@ function blankVessel(name, id) {
 
 let fleetMemory = null;
 let fleetPublishNote = "";
+let fleetPendingKey = "";
 
 function loadFleet() {
   if (!fleetMemory) fleetMemory = readStoredFleet();
@@ -627,7 +628,14 @@ function saveFleet(fleet) {
 }
 
 function cameraKey(fleet) {
-  return fleet.vessels.map((vessel) => CAMERA_ROLES.map((role) => `${vessel.id}:${role.id}:${vessel.cameras[role.id].src}`).join("|")).join(";");
+  if (!fleet || !Array.isArray(fleet.vessels)) return "";
+  return fleet.vessels.map((vessel) => {
+    const slots = CAMERA_ROLES.map((role) => {
+      const cam = vessel.cameras && vessel.cameras[role.id] ? vessel.cameras[role.id] : { src: "", place: "" };
+      return `${role.id}:${cam.src || ""}:${cam.place || ""}`;
+    }).join("|");
+    return `${vessel.id}:${vessel.name}:${slots}`;
+  }).join(";");
 }
 
 function fleetFormBusy() {
@@ -638,6 +646,7 @@ function fleetFormBusy() {
 function publishFleet(fleet) {
   fleet.savedAt = Date.now();
   saveFleet(fleet);
+  fleetPendingKey = cameraKey(fleet);
   fleetPublishNote = "Сохраняю ссылку в проект…";
   publishFleetRequest(fleet);
 }
@@ -674,40 +683,53 @@ function fleetIssueUrl(fleet) {
   return `https://github.com/gaszapros/marine-vms/issues/new?title=${title}&body=${body}`;
 }
 
-async function refreshSharedFleet() {
+async function fetchFleetFile(address) {
   try {
-    const response = await fetch(`fleet.json?t=${Date.now()}`, { cache: "no-store" });
-    if (!response.ok) return;
+    const response = await fetch(address, { cache: "no-store" });
+    if (!response.ok) return null;
     const remote = await response.json();
-    if (!remote || !Array.isArray(remote.vessels) || !remote.vessels.length) return;
-    const local = loadFleet();
-    if (local.savedAt == null && cameraKey(local) !== cameraKey(remote)) {
-      local.savedAt = Date.now();
+    if (!remote || !Array.isArray(remote.vessels) || !remote.vessels.length) return null;
+    return remote;
+  } catch (error) {
+    return null;
+  }
+}
+
+async function loadRemoteFleet() {
+  const github = await fetchFleetFile(`https://raw.githubusercontent.com/gaszapros/marine-vms/main/static/fleet.json?t=${Date.now()}`);
+  if (github) return github;
+  return fetchFleetFile(`fleet.json?t=${Date.now()}`);
+}
+
+async function refreshSharedFleet() {
+  const remote = await loadRemoteFleet();
+  if (!remote) return;
+  const local = loadFleet();
+  const remoteKey = cameraKey(remote);
+  const localKey = cameraKey(local);
+  if (fleetPendingKey && remoteKey === fleetPendingKey) {
+    fleetPendingKey = "";
+    local.savedAt = remote.savedAt;
+    saveFleet(local);
+    fleetPublishNote = "Ссылка сохранена для всех устройств.";
+    if (!fleetFormBusy()) renderFleet();
+    return;
+  }
+  if (fleetPendingKey && localKey === fleetPendingKey) return;
+  if (remoteKey === localKey) {
+    if (remote.savedAt && local.savedAt !== remote.savedAt) {
+      local.savedAt = remote.savedAt;
       saveFleet(local);
-      fleetPublishNote = "Эта ссылка пока только в этом браузере. Нажмите «Сохранить потоки».";
-      if (!fleetFormBusy()) renderFleet();
-      return;
     }
-    const remoteAt = Number(remote.savedAt) || 0;
-    const localAt = Number(local.savedAt) || 0;
-    if (remoteAt < localAt) return;
-    const changed = cameraKey(local) !== cameraKey(remote);
-    const waiting = fleetPublishNote.startsWith("На открывшейся") || fleetPublishNote.startsWith("Сохраняю");
-    if (!changed && remoteAt === localAt) {
-      if (waiting) {
-        fleetPublishNote = "Ссылка сохранена для всех устройств.";
-        if (!fleetFormBusy()) renderFleet();
-      }
-      return;
-    }
-    remote.view = local.view === "stand" ? "stand" : "fleet";
-    if (!remote.vessels.some((vessel) => vessel.id === local.selected)) remote.selected = remote.vessels[0].id;
-    else remote.selected = local.selected;
-    saveFleet(remote);
-    if (waiting) fleetPublishNote = "Ссылка сохранена для всех устройств.";
-    if (changed && publicMode && !fleetFormBusy()) showPublicCameras();
-    else if (waiting && !fleetFormBusy()) renderFleet();
-  } catch (error) {}
+    return;
+  }
+  if (fleetFormBusy()) return;
+  remote.view = local.view === "stand" ? "stand" : "fleet";
+  remote.selected = remote.vessels.some((vessel) => vessel.id === local.selected) ? local.selected : remote.vessels[0].id;
+  saveFleet(remote);
+  fleetPublishNote = "Камеры обновлены из проекта.";
+  if (publicMode) showPublicCameras();
+  else renderFleet();
 }
 
 function vesselCameras(vessel) {
